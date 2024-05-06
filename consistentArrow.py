@@ -46,7 +46,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
     def SetString(self, value):
         self._mode = value
         self.Modified()
-        
+
     @smproperty.doublevector(name="Center Point", default_values=[1., 1.])
     @smdomain.doublerange()
     def SetStartPoint(self, x, y):
@@ -91,16 +91,16 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         breadth = abs(bounds[0]) + abs(bounds[1])
         height = abs(bounds[2]) + abs(bounds[3])
-        
+
         distX = breadth / (self._cols + 1)
         distY = height / (self._rows + 1)
 
         centerBreadth = breadth / 2
         centerHeight = height / 2
-        
+
         yComponents = []
         xComponents = []
-        
+
         if self._rows % 2 == 1:
             yComponents.append(centerHeight)
             for i in range(int((self._rows - 1) / 2)):
@@ -114,10 +114,10 @@ class consistentArrow(VTKPythonAlgorithmBase):
             for i in range(int(self._rows / 2) - 1):
                 yComponents.append(evenHeightLower - (i + 1) * distY)
                 yComponents.append(evenHeightUpper + (i + 1) * distY)
-        
+
         yComponents.sort()
         print(yComponents)
-        
+
         if self._cols % 2 == 1:
             xComponents.append(centerBreadth)
             for i in range(int((self._cols - 1) / 2)):
@@ -131,15 +131,15 @@ class consistentArrow(VTKPythonAlgorithmBase):
             for i in range(int(self._cols / 2) - 1):
                 xComponents.append(evenBreadthLower - (i + 1) * distX)
                 xComponents.append(evenBreadthUpper + (i + 1) * distX)
-        
+
         xComponents.sort()
         print(xComponents)
-        
+
         grid = []
         for i in range(len(xComponents)):
             for j in range(len(yComponents)):
                 grid.append([xComponents[i], yComponents[j]])
-        
+
         return grid
 
     def findIndex(self, dims, bounds, point):
@@ -154,108 +154,167 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         return [index_px-1, index_py-1]
 
-    def GetInterpVector(self, input0, point, normalized=False):
-        # utilizing bilinear interpolation
-        dimensions = input0.GetDimensions()
-        bounds = input0.GetBounds()
-        spacing = input0.GetSpacing()
-        origin = input0.GetOrigin()
+    def bilinear_interpolation(self, image_data, position):
+        """
+        Bilinear interpolation for obtaining the vector at a given position in the vector field.
 
-        origin_0 = origin[0]
-        origin_1 = origin[1]
-        spacing_0 = spacing[0]
-        spacing_1 = spacing[1]
-        dimensions_0 = dimensions[0]
+        Parameters:
+            image_data: vtk.vtkImageData
+                vtkImageData object containing the vector field data.
+            position: numpy.ndarray
+                Position at which to interpolate the vector. Shape: (2,)
+                The position should be in the image data coordinate system
 
-        if point[0] < bounds[0]:
-            point[0] = bounds[0]
+        Returns:
+            numpy.ndarray
+                Vector interpolated at the given position
+        """
+        # extract image dimensions
+        dims = image_data.GetDimensions()
+        i, j = position
 
-        elif point[0] > bounds[1]:
-            point[0] = bounds[1]
+        # extract grid coordinates
+        i_floor, j_floor = int(np.floor(i)), int(np.floor(j))
+        i_ceil, j_ceil  = int(np.ceil(i)), int(np.ceil(j))
 
-        if point[1] < bounds[2]:
-            point[1] = bounds[2]
+        # bilinear interpolation weights
+        di = i - i_floor
+        dj = j - j_floor
 
-        elif point[1] > bounds[3]:
-            point[1] = bounds[3]
+        # interpolate vectors
+        vector_field = image_data.GetPointData().GetArray(0)
+        vector_floor_floor = np.array(vector_field.GetTuple(np.ravel_multi_index((i_floor, j_floor, 0), dims)))
+        vector_floor_ceil = np.array(vector_field.GetTuple(np.ravel_multi_index((i_floor, j_ceil, 0), dims)))
+        vector_ceil_floor = np.array(vector_field.GetTuple(np.ravel_multi_index((i_ceil, j_floor, 0), dims)))
+        vector_ceil_ceil = np.array(vector_field.GetTuple(np.ravel_multi_index((i_ceil, j_ceil, 0), dims)))
 
-        indices = self.findIndex(dimensions, bounds, point)
+        interpolated_vector = (1 - di) * ((1 - dj) * vector_floor_floor + dj * vector_ceil_floor) + \
+                                di * ((1 - dj) * vector_floor_ceil + dj * vector_ceil_ceil)
 
-        px = point[0]
-        py = point[1]
+        return interpolated_vector
 
-        x1 = indices[0] * spacing[0] - abs(bounds[0])
-        x2 = (indices[0] + 1) * spacing[0] - abs(bounds[0])
-        y1 = indices[1] * spacing[1] - abs(bounds[1])
-        y2 = (indices[1] + 1) * spacing[1] - abs(bounds[1])
 
-        q11 = input0.GetPointData().GetArray(0).GetTuple(
-            int(
-                (x1 - origin_0)/spacing_0 +
-                (y1 - origin_1)/spacing_1 * dimensions_0
-            )
-        )
-        q12 = input0.GetPointData().GetArray(0).GetTuple(
-            int(
-                (x1 - origin_0)/spacing_0 +
-                (y2 - origin_1)/spacing_1 * dimensions_0
-            )
-        )
-        q21 = input0.GetPointData().GetArray(0).GetTuple(
-            int(
-                (x2 - origin_0)/spacing_0 +
-                (y1 - origin_1)/spacing_1 * dimensions_0
-            )
-        )
-        q22 = input0.GetPointData().GetArray(0).GetTuple(
-            int(
-                (x2 - origin_0)/spacing_0 +
-                (y2 - origin_1)/spacing_1 * dimensions_0
-            )
-        )
+    # def GetInterpVector(self, input0, point, normalized=False):
+    #     # utilizing bilinear interpolation
+    #     dimensions = input0.GetDimensions()
+    #     bounds = input0.GetBounds()
+    #     spacing = input0.GetSpacing()
+    #     origin = input0.GetOrigin()
 
-        interpolated = (
-            np.divide(
-                (np.multiply(q11, (x2 - px) * (y2 - py)) +
-                np.multiply(q21, (px - x1) * (y2 - py)) +
-                np.multiply(q12, (x2 - px) * (py - y1)) +
-                np.multiply(q22, (px - x1) * (py - y1))), ((x2 - x1) * (y2 - y1) + 0.0))
-        )
-        interpolatedVec = [interpolated[0], interpolated[1], 0.]
+    #     origin_0 = origin[0]
+    #     origin_1 = origin[1]
+    #     spacing_0 = spacing[0]
+    #     spacing_1 = spacing[1]
+    #     dimensions_0 = dimensions[0]
 
-        if normalized:
-            return interpolatedVec / np.linalg.norm(interpolatedVec)
+    #     if point[0] < bounds[0]:
+    #         point[0] = bounds[0]
 
-        return interpolatedVec
+    #     elif point[0] > bounds[1]:
+    #         point[0] = bounds[1]
 
-    def ClipAtBounds(self, point, input0, previous=[0.,0.]):
-        bounds = input0.GetBounds()
-        if point[0] < bounds[0]:
-            point[0] = bounds[0]
+    #     if point[1] < bounds[2]:
+    #         point[1] = bounds[2]
 
-        elif point[0] > bounds[1]:
-            point[0] = bounds[1]
+    #     elif point[1] > bounds[3]:
+    #         point[1] = bounds[3]
 
-        if point[1] < bounds[2]:
-            point[1] = bounds[2]
+    #     indices = self.findIndex(dimensions, bounds, point)
 
-        elif point[1] > bounds[3]:
-            point[1] = bounds[3]
+    #     px = point[0]
+    #     py = point[1]
 
-        if point[2] != 0.:
-            point[2] = 0.
-    
+    #     x1 = indices[0] * spacing[0] - abs(bounds[0])
+    #     x2 = (indices[0] + 1) * spacing[0] - abs(bounds[0])
+    #     y1 = indices[1] * spacing[1] - abs(bounds[1])
+    #     y2 = (indices[1] + 1) * spacing[1] - abs(bounds[1])
+
+    #     q11 = input0.GetPointData().GetArray(0).GetTuple(
+    #         int(
+    #             (x1 - origin_0)/spacing_0 +
+    #             (y1 - origin_1)/spacing_1 * dimensions_0
+    #         )
+    #     )
+    #     q12 = input0.GetPointData().GetArray(0).GetTuple(
+    #         int(
+    #             (x1 - origin_0)/spacing_0 +
+    #             (y2 - origin_1)/spacing_1 * dimensions_0
+    #         )
+    #     )
+    #     q21 = input0.GetPointData().GetArray(0).GetTuple(
+    #         int(
+    #             (x2 - origin_0)/spacing_0 +
+    #             (y1 - origin_1)/spacing_1 * dimensions_0
+    #         )
+    #     )
+    #     q22 = input0.GetPointData().GetArray(0).GetTuple(
+    #         int(
+    #             (x2 - origin_0)/spacing_0 +
+    #             (y2 - origin_1)/spacing_1 * dimensions_0
+    #         )
+    #     )
+
+    #     interpolated = (
+    #         np.divide(
+    #             (np.multiply(q11, (x2 - px) * (y2 - py)) +
+    #             np.multiply(q21, (px - x1) * (y2 - py)) +
+    #             np.multiply(q12, (x2 - px) * (py - y1)) +
+    #             np.multiply(q22, (px - x1) * (py - y1))), ((x2 - x1) * (y2 - y1) + 0.0))
+    #     )
+    #     interpolatedVec = [interpolated[0], interpolated[1], 0.]
+
+    #     if normalized:
+    #         return interpolatedVec / np.linalg.norm(interpolatedVec)
+
+    #     return interpolatedVec
+
+    # def ClipAtBounds(self, point, input0, previous=[0.,0.]):
+    #     bounds = input0.GetBounds()
+    #     if point[0] < bounds[0]:
+    #         point[0] = bounds[0]
+
+    #     elif point[0] > bounds[1]:
+    #         point[0] = bounds[1]
+
+    #     if point[1] < bounds[2]:
+    #         point[1] = bounds[2]
+
+    #     elif point[1] > bounds[3]:
+    #         point[1] = bounds[3]
+
+    #     if point[2] != 0.:
+    #         point[2] = 0.
+
+    def rk4_integrate(self, image_data):
+
+
+        def rotate_vector(vector, direction):
+            if direction == "clockwise":
+                return np.array([vector[1], -vector[0]])
+            elif direction == "counterclockwise":
+                return np.array([-vector[1], vector[0]])
+            else:
+                raise ValueError("Invalid rotation direction.")
+
+        def integrate_step(point, h, direction):
+            k1 = np.array(self.bilinear_interpolation(image_data, point))
+            k2 = np.array(self.bilinear_interpolation(image_data, point + h / 2 * k1))
+            k3 = np.array(self.bilinear_interpolation(image_data, point + h / 2 * k2))
+            k4 = np.array(self.bilinear_interpolation(image_data, point + h * k3))
+
+            return point + h / 6 * (k1 + 2 * k2 + 2 * k3)
+
     def rk4(
-        self, 
-        input0: vtkImageData, 
-        pointArr: list, 
-        loopLen: int, 
-        cur: list, 
-        stepsize: float, 
-        goingForward:bool, 
-        goingLeft:bool, 
-        indexFactor: int, 
-        indexIncr: int, 
+        self,
+        input0: vtkImageData,
+        pointArr: list,
+        loopLen: int,
+        cur: list,
+        stepsize: float,
+        goingForward:bool,
+        goingLeft:bool,
+        indexFactor: int,
+        indexIncr: int,
         scaling: float,
         orthogonal: bool,
     ) -> list:
@@ -277,7 +336,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
                 k_4 = self.GetInterpVector(input0, point=[cur[0] + k_3[0], cur[1] + k_3[1], 0.])
                 k_4 = np.multiply([directionLeft * k_4[1], (-1 * directionLeft) * k_4[0], 0.], scaling)
 
-                next = np.add(cur, directionForward * (stepsize/6.)*(np.add(k_1, 
+                next = np.add(cur, directionForward * (stepsize/6.)*(np.add(k_1,
                                                                             np.add(2*k_2,
                                                                                 np.add(2*k_3, k_4)
                                                                                 )
@@ -302,7 +361,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
                 k_4 = np.multiply(self.GetInterpVector(input0, point=[cur[0] + k_3[0], cur[1] + k_3[1], 0.]), scaling)
 
-                next = np.add(cur, directionForward * (stepsize/6.)*(np.add(k_1, 
+                next = np.add(cur, directionForward * (stepsize/6.)*(np.add(k_1,
                                                                             np.add(2*k_2,
                                                                                 np.add(2*k_3, k_4)
                                                                                 )
@@ -314,21 +373,21 @@ class consistentArrow(VTKPythonAlgorithmBase):
                 cur = next
                 i += 1
                 t += stepsize
-                
+
         return pointArr
 
-    
+
     def euler(
-        self, 
-        input0: vtkImageData, 
-        pointArr: list, 
-        loopLen: int, 
-        cur: list, 
-        stepsize: float, 
-        goingForward: bool, 
-        goingLeft: bool, 
-        indexFactor: int, 
-        indexIncr: int, 
+        self,
+        input0: vtkImageData,
+        pointArr: list,
+        loopLen: int,
+        cur: list,
+        stepsize: float,
+        goingForward: bool,
+        goingLeft: bool,
+        indexFactor: int,
+        indexIncr: int,
         scaling: float,
         orthogonal: bool,
     ) -> list:
@@ -358,7 +417,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
                 cur = next
                 i += 1
                 t += stepsize
-        
+
         return pointArr
 
     def setNumberOfIdsAndLinkToPoints(
@@ -382,7 +441,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         rightEdge.GetPointIds().SetNumberOfIds(rightLineLength)
         arrowBaseL.GetPointIds().SetNumberOfIds(leftArrowBaseLength)
         arrowBaseR.GetPointIds().SetNumberOfIds(rightArrowBaseLength)
-        
+
         for i in range(centerLineLength):
             centerPolyline.GetPointIds().SetId(i, i)
 
@@ -429,7 +488,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         startCenter = [self._center[0], self._center[1], 0.]
         scaling = 1/50
         arrowheadStart = int(math.ceil(self._length/2.0)) - 1
-        
+
         grid = self.generateGridPoints(bounds)
 
         ############################################################ SETTING UP POINT ARRAYS FOR LINES ############################################################
@@ -450,8 +509,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
         stepsize = 1/steps
 
         ORIGIN = startCenter
-        
-        
 
         centerLineLength = 2 * (self._length * steps) + 1
         centerLinePoints = [None] * centerLineLength
@@ -461,29 +518,29 @@ class consistentArrow(VTKPythonAlgorithmBase):
             directionFactor = pow(-1, i) # -1 for first pass -> back | 1 for second pass -> forth
             if self._mode == "euler":
                 centerLinePoints = self.euler(
-                    input0=input0, 
-                    pointArr=centerLinePoints, 
-                    loopLen=self._length, 
-                    cur=cur, 
-                    stepsize=stepsize, 
+                    input0=input0,
+                    pointArr=centerLinePoints,
+                    loopLen=self._length,
+                    cur=cur,
+                    stepsize=stepsize,
                     goingForward=not bool(i),
-                    goingLeft=None, 
-                    indexFactor=directionFactor, 
-                    indexIncr=self._length*steps, 
+                    goingLeft=None,
+                    indexFactor=directionFactor,
+                    indexIncr=self._length*steps,
                     scaling=scaling,
                     orthogonal=False
                 )
             elif self._mode == "rk4":
                 centerLinePoints = self.rk4(
-                    input0=input0, 
-                    pointArr=centerLinePoints, 
-                    loopLen=self._length, 
-                    cur=cur, 
-                    stepsize=stepsize, 
-                    goingForward=not bool(i), 
+                    input0=input0,
+                    pointArr=centerLinePoints,
+                    loopLen=self._length,
+                    cur=cur,
+                    stepsize=stepsize,
+                    goingForward=not bool(i),
                     goingLeft=None,
-                    indexFactor=directionFactor, 
-                    indexIncr=self._length*steps, 
+                    indexFactor=directionFactor,
+                    indexIncr=self._length*steps,
                     scaling=scaling,
                     orthogonal=False
                 )
@@ -491,7 +548,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         CENTER_START = centerLinePoints[0]
         CENTER_END = centerLinePoints[len(centerLinePoints) - 1]
-        
+
 
         bottomArcLength = 2 * (thickness*steps) + 1
         bottomArcPoints = [None] * bottomArcLength
@@ -501,29 +558,29 @@ class consistentArrow(VTKPythonAlgorithmBase):
             directionFactor = pow(-1, i) # -1 for first pass -> back | 1 for second pass -> forth
             if self._mode == "euler":
                 bottomArcPoints = self.euler(
-                    input0=input0, 
-                    pointArr=bottomArcPoints, 
-                    loopLen=thickness, 
-                    cur=cur, 
-                    stepsize=stepsize, 
-                    goingForward=True, 
-                    goingLeft=bool(i), 
-                    indexFactor=directionFactor, 
-                    indexIncr=thickness*steps, 
+                    input0=input0,
+                    pointArr=bottomArcPoints,
+                    loopLen=thickness,
+                    cur=cur,
+                    stepsize=stepsize,
+                    goingForward=True,
+                    goingLeft=bool(i),
+                    indexFactor=directionFactor,
+                    indexIncr=thickness*steps,
                     scaling=scaling,
                     orthogonal=True
                 )
             elif self._mode == "rk4":
                 bottomArcPoints = self.rk4(
-                    input0=input0, 
-                    pointArr=bottomArcPoints, 
-                    loopLen=thickness, 
-                    cur=cur, 
-                    stepsize=stepsize, 
-                    goingForward=True, 
-                    goingLeft=bool(i), 
-                    indexFactor=directionFactor, 
-                    indexIncr=thickness*steps, 
+                    input0=input0,
+                    pointArr=bottomArcPoints,
+                    loopLen=thickness,
+                    cur=cur,
+                    stepsize=stepsize,
+                    goingForward=True,
+                    goingLeft=bool(i),
+                    indexFactor=directionFactor,
+                    indexIncr=thickness*steps,
                     scaling=scaling,
                     orthogonal=True
                 )
@@ -541,28 +598,28 @@ class consistentArrow(VTKPythonAlgorithmBase):
         leftLinePoints[0] = LEFT_START
         if self._mode == "euler":
             leftLinePoints = self.euler(
-                input0=input0, 
-                pointArr=leftLinePoints, 
-                loopLen=self._length + arrowheadStart, 
+                input0=input0,
+                pointArr=leftLinePoints,
+                loopLen=self._length + arrowheadStart,
                 cur=cur,
-                stepsize=stepsize, 
+                stepsize=stepsize,
                 goingForward=True,
                 goingLeft=None,
-                indexFactor=1, 
+                indexFactor=1,
                 indexIncr=0,
                 scaling=scaling,
                 orthogonal=False
             )
         elif self._mode == "rk4":
             leftLinePoints = self.rk4(
-                input0=input0, 
-                pointArr=leftLinePoints, 
-                loopLen=self._length + arrowheadStart, 
-                cur=cur, 
-                stepsize=stepsize, 
+                input0=input0,
+                pointArr=leftLinePoints,
+                loopLen=self._length + arrowheadStart,
+                cur=cur,
+                stepsize=stepsize,
                 goingForward=True,
                 goingLeft=None,
-                indexFactor=1, 
+                indexFactor=1,
                 indexIncr=0,
                 scaling=scaling,
                 orthogonal=False
@@ -577,28 +634,28 @@ class consistentArrow(VTKPythonAlgorithmBase):
         rightLinePoints[0] = RIGHT_START
         if self._mode == "euler":
             rightLinePoints = self.euler(
-                input0=input0, 
-                pointArr=rightLinePoints, 
-                loopLen=self._length + arrowheadStart, 
-                cur=cur, 
-                stepsize=stepsize, 
+                input0=input0,
+                pointArr=rightLinePoints,
+                loopLen=self._length + arrowheadStart,
+                cur=cur,
+                stepsize=stepsize,
                 goingForward=True,
                 goingLeft=None,
-                indexFactor=1, 
+                indexFactor=1,
                 indexIncr=0,
                 scaling=scaling,
                 orthogonal=False
             )
         elif self._mode == "rk4":
             rightLinePoints = self.rk4(
-                input0=input0, 
-                pointArr=rightLinePoints, 
-                loopLen=self._length + arrowheadStart, 
-                cur=cur, 
-                stepsize=stepsize, 
+                input0=input0,
+                pointArr=rightLinePoints,
+                loopLen=self._length + arrowheadStart,
+                cur=cur,
+                stepsize=stepsize,
                 goingForward=True,
                 goingLeft=None,
-                indexFactor=1, 
+                indexFactor=1,
                 indexIncr=0,
                 scaling=scaling,
                 orthogonal=False
@@ -613,28 +670,28 @@ class consistentArrow(VTKPythonAlgorithmBase):
         leftArrowBasePoints[0] = LEFT_END
         if self._mode == "euler":
             leftArrowBasePoints = self.euler(
-                input0=input0, 
-                pointArr=leftArrowBasePoints, 
-                loopLen=thickness, 
-                cur=cur, 
-                stepsize=stepsize, 
-                goingForward=True, 
-                goingLeft=True, 
-                indexFactor=1, 
+                input0=input0,
+                pointArr=leftArrowBasePoints,
+                loopLen=thickness,
+                cur=cur,
+                stepsize=stepsize,
+                goingForward=True,
+                goingLeft=True,
+                indexFactor=1,
                 indexIncr=0,
                 scaling=scaling,
                 orthogonal=True
             )
         elif self._mode == "rk4":
             leftArrowBasePoints = self.rk4(
-                input0=input0, 
-                pointArr=leftArrowBasePoints, 
-                loopLen=thickness, 
-                cur=cur, 
-                stepsize=stepsize, 
-                goingForward=True, 
-                goingLeft=True, 
-                indexFactor=1, 
+                input0=input0,
+                pointArr=leftArrowBasePoints,
+                loopLen=thickness,
+                cur=cur,
+                stepsize=stepsize,
+                goingForward=True,
+                goingLeft=True,
+                indexFactor=1,
                 indexIncr=0,
                 scaling=scaling,
                 orthogonal=True
@@ -649,28 +706,28 @@ class consistentArrow(VTKPythonAlgorithmBase):
         rightArrowBasePoints[0] = RIGHT_END
         if self._mode == "euler":
             rightArrowBasePoints = self.euler(
-                input0=input0, 
-                pointArr=rightArrowBasePoints, 
-                loopLen=thickness, 
-                cur=cur, 
-                stepsize=stepsize, 
-                goingForward=True, 
-                goingLeft=False, 
-                indexFactor=1, 
+                input0=input0,
+                pointArr=rightArrowBasePoints,
+                loopLen=thickness,
+                cur=cur,
+                stepsize=stepsize,
+                goingForward=True,
+                goingLeft=False,
+                indexFactor=1,
                 indexIncr=0,
                 scaling=scaling,
                 orthogonal=True
             )
         elif self._mode == "rk4":
             rightArrowBasePoints = self.rk4(
-                input0=input0, 
-                pointArr=rightArrowBasePoints, 
-                loopLen=thickness, 
-                cur=cur, 
-                stepsize=stepsize, 
-                goingForward=True, 
-                goingLeft=False, 
-                indexFactor=1, 
+                input0=input0,
+                pointArr=rightArrowBasePoints,
+                loopLen=thickness,
+                cur=cur,
+                stepsize=stepsize,
+                goingForward=True,
+                goingLeft=False,
+                indexFactor=1,
                 indexIncr=0,
                 scaling=scaling,
                 orthogonal=True
@@ -687,7 +744,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         ############################################################ SETTING NUMBER OF IDS ############################################################
         ############################################################ SETTING IDS TO POINTS ############################################################
-        
+
         self.setNumberOfIdsAndLinkToPoints(
             centerLineLength,
             centerPolyline,
@@ -903,7 +960,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         arrowHeadPoints = [*leftArrowHeadPoints, *rightArrowBasePoints]
         arrowHeadPoints = leftArrowHeadPoints
-        
+
         for point in arrowHeadPoints:
             linePoints.InsertNextPoint(point)
 
@@ -918,7 +975,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         lines.InsertNextCell(arrowTipL)
         #lines.InsertNextCell(arrowTipR)
-        
+
 
         ############################################################ ADDING COLORS TO CELLS/POINTS ############################################################
         # unfinished
