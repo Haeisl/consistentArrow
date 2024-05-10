@@ -83,19 +83,20 @@ class consistentArrow(VTKPythonAlgorithmBase):
         return 1
 
 
-    def generate_grid_points(self, bounds, cols, rows):
-        min_x, max_x, min_y, max_y = bounds
-        grid_points = []
+    def generate_grid_points(self, bounds):
+        """
+        Create a grid of uniformly spread coordinates within the bounding box.
+        """
+        min_x, max_x, min_y, max_y = bounds[0], bounds[1], bounds[2], bounds[3]
+        columns, rows = self.grid_dimensions
+        # Generate the linearly spaced points between min and max for x and y
+        x = np.linspace(min_x + (max_x - min_x) / (columns + 1), max_x - (max_x - min_x) / (columns + 1), columns)
+        y = np.linspace(min_y + (max_y - min_y) / (rows + 1), max_y - (max_y - min_y) / (rows + 1), rows)
 
-        # Compute the spacing between the points
-        dx = (max_x - min_x) / (cols + 1)
-        dy = (max_y - min_y) / (rows + 1)
+        # Generate grid points using meshgrid
+        xv, yv = np.meshgrid(x, y)
 
-        # Generate the grid points
-        for i in range(1, rows + 1):
-            for j in range(1, cols + 1):
-                x = min_x + j * dx
-                y = min_y + i * dy
-                grid_points.append((x, y))
+        # Flatten the coordinates and stack them, then add a zero as the third component
+        grid_points = np.column_stack([xv.ravel(), yv.ravel(), np.zeros(rows * columns)])
 
         return grid_points
