@@ -84,33 +84,18 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
 
     def generate_grid_points(self, bounds, cols, rows):
-        breadth = abs(bounds[0]) + abs(bounds[1])
-        height = abs(bounds[2]) + abs(bounds[3])
+        min_x, max_x, min_y, max_y = bounds
+        grid_points = []
 
-        dist_x = breadth / (cols + 1)
-        dist_y = height / (rows + 1)
+        # Compute the spacing between the points
+        dx = (max_x - min_x) / (cols + 1)
+        dy = (max_y - min_y) / (rows + 1)
 
-        center_breadth = breadth / 2
-        center_height = height / 2
+        # Generate the grid points
+        for i in range(1, rows + 1):
+            for j in range(1, cols + 1):
+                x = min_x + j * dx
+                y = min_y + i * dy
+                grid_points.append((x, y))
 
-        if rows % 2 == 1:
-            y_components = np.linspace(
-                center_height - (rows // 2) * dist_y,
-                center_height + (rows // 2) * dist_y,
-                rows
-            )
-        else:
-            even_height_lower = center_height - 0.5 * dist_y
-            yComponents = np.concatenate(([even_height_lower], [even_height_lower - (i + 1) * dist_y for i in range(rows // 2)],
-                                            [even_height_lower + (i + 1) * dist_y for i in range(rows // 2)]))
-
-        if cols % 2 == 1:
-            xComponents = np.linspace(center_breadth - (cols // 2) * dist_x,center_breadth + (cols // 2) * dist_x, cols)
-        else:
-            evenBreadthLower =center_breadth - 0.5 * dist_x
-            xComponents = np.concatenate(([evenBreadthLower], [evenBreadthLower - (i + 1) * dist_x for i in range(cols // 2)],
-                                            [evenBreadthLower + (i + 1) * dist_x for i in range(cols // 2)]))
-
-        grid = np.column_stack((np.repeat(xComponents, len(yComponents)), np.tile(yComponents, len(xComponents))))
-
-        return grid.tolist()
+        return grid_points
