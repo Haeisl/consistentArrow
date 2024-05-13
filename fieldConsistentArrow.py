@@ -326,6 +326,45 @@ class consistentArrow(VTKPythonAlgorithmBase):
                 steps=self._thickness,
                 left=False
             )
+
+            def construct_glyph(glyph_points, line_lengths, points, lines):
+                # Initialize the starting index for glyph_points
+                index = 0
+
+                # Prepare the segment data based on the line lengths and corresponding segment points
+                segments = [
+                    (line_lengths[0] + line_lengths[1] + 1, center_line_backwards + [ORIGIN] + center_line_forwards),
+                    (line_lengths[2] + line_lengths[3] + 1, bottom_arc_left + [center_line_backwards[-1]] + bottom_arc_right),
+                    (line_lengths[4], side_line_left),
+                    (line_lengths[5], side_line_right),
+                    (line_lengths[6], arrowbase_left),
+                    (line_lengths[7], arrowbase_right)
+                ]
+
+                # Construct glyph_points and populate the vtkPoints
+                for length, segment_points in segments:
+                    glyph_points[index:index + length] = segment_points
+                    for p in segment_points:
+                        points.InsertNextPoint(p)
+                    index += length
+
+                # Helper function to create a polyline and set point IDs
+                def create_polyline(start, length):
+                    polyline = vtk.vtkPolyLine()
+                    polyline.GetPointIds().SetNumberOfIds(length)
+                    for i in range(length):
+                        polyline.GetPointIds().SetId(i, start + i)
+                    return polyline
+
+                # Starting index for each polyline
+                start_index = 0
+
+                # Create and insert each polyline
+                for length, _ in segments:
+                    polyline = create_polyline(start_index, length)
+                    lines.InsertNextCell(polyline)
+                    start_index += length
+
             line_lengths = [len(lst) for lst in [
                 center_line_backwards,
                 center_line_forwards,
@@ -338,49 +377,8 @@ class consistentArrow(VTKPythonAlgorithmBase):
             ]]
             number_of_points = sum(line_lengths)
             glyph_points = [None] * (number_of_points + 2)
-            glyph_points[:line_lengths[0]+line_lengths[1]+1] = center_line_backwards + [ORIGIN] + center_line_forwards
-            glyph_points[line_lengths[0]+line_lengths[1]+1:line_lengths[2]+line_lengths[3]+1] = bottom_arc_left + [center_line_backwards[-1]] + bottom_arc_right
-            glyph_points[line_lengths[0]+line_lengths[1]+line_lengths[2]+line_lengths[3]+2:line_lengths[4]] = side_line_left
-            glyph_points[line_lengths[0]+line_lengths[1]+line_lengths[2]+line_lengths[3]+line_lengths[4]+2:line_lengths[5]] = side_line_right
-            glyph_points[line_lengths[0]+line_lengths[1]+line_lengths[2]+line_lengths[3]+line_lengths[4]+line_lengths[5]+2:line_lengths[6]] = arrowbase_left
-            glyph_points[line_lengths[0]+line_lengths[1]+line_lengths[2]+line_lengths[3]+line_lengths[4]+line_lengths[5]+line_lengths[6]+2:line_lengths[7]] = arrowbase_right
 
-            for p in glyph_points:
-                points.InsertNextPoint(p)
-
-            polyline_center = vtk.vtkPolyLine()
-            polyline_edge_bottom = vtk.vtkPolyLine()
-            polyline_edge_left = vtk.vtkPolyLine()
-            polyline_edge_right = vtk.vtkPolyLine()
-            polyline_arrowbase_left = vtk.vtkPolyLine()
-            polyline_arrowbase_right = vtk.vtkPolyLine()
-
-            polyline_center.GetPointIds().SetNumberOfIds(line_lengths[0]+line_lengths[1]+1)
-            polyline_edge_bottom.GetPointIds().SetNumberOfIds(line_lengths[2]+line_lengths[3]+1)
-            polyline_edge_left.GetPointIds().SetNumberOfIds(line_lengths[4])
-            polyline_edge_right.GetPointIds().SetNumberOfIds(line_lengths[5])
-            polyline_arrowbase_left.GetPointIds().SetNumberOfIds(line_lengths[6])
-            polyline_arrowbase_right.GetPointIds().SetNumberOfIds(line_lengths[7])
-
-            for i in range(line_lengths[0]+line_lengths[1]+1):
-                polyline_center.GetPointIds().SetId(i,i)
-            for i in range(line_lengths[2]+line_lengths[3]+1):
-                polyline_edge_bottom.GetPointIds.SetId(i,line_lengths[0]+line_lengths[1]+1+i)
-            for i in range(line_lengths[4]):
-                polyline_edge_left.GetPointIds.SetId(i,line_lengths[0]+line_lengths[1]+line_lengths[2]+line_lengths[3]+2+i)
-            for i in range(line_lengths[5]):
-                polyline_edge_right.GetPointIds.SetId(i,line_lengths[0]+line_lengths[1]+line_lengths[2]+line_lengths[3]+line_lengths[4]+2+i)
-            for i in range(line_lengths[6]):
-                polyline_arrowbase_left.GetPointIds.SetId(i,line_lengths[0]+line_lengths[1]+line_lengths[2]+line_lengths[3]+line_lengths[4]+line_lengths[5]+2+i)
-            for i in range(line_lengths[7]):
-                polyline_arrowbase_right.GetPointIds.SetId(i,line_lengths[0]+line_lengths[1]+line_lengths[2]+line_lengths[3]+line_lengths[4]+line_lengths[5]+line_lengths[6]+2+i)
-
-            lines.InsertNextCell(polyline_center)
-            lines.InsertNextCell(polyline_edge_bottom)
-            lines.InsertNextCell(polyline_edge_left)
-            lines.InsertNextCell(polyline_edge_right)
-            lines.InsertNextCell(polyline_arrowbase_left)
-            lines.InsertNextCell(polyline_arrowbase_right)
+            construct_glyph(glyph_points, line_lengths, points, lines)
 
         poly_output.SetPoints(points)
         poly_output.SetLines(lines)
