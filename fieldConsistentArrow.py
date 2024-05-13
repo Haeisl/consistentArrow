@@ -267,6 +267,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         origins = np.array([self._center[0], self._center[1], 0.0]).reshape((1,3))
         print(f"Drawing glyph with midpoint at ({origins[0][0]},{origins[0][1]})")
 
+        print(f"{self._grid_dims=}")
         if self._grid_dims[0] > 0 and self._grid_dims[1] > 0:
             print(f"Drawing additional glyphs in a {self._grid_dims[0]}x{self._grid_dims[1]} grid")
             grid_points = self.generate_grid_points(bounds)
@@ -277,7 +278,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         # self._thickness       | Glyph width; unit length of the arcs at the bottom of the arrow
 
         # standard      (self, image_data, cur, steps, forward)
-        # orthogonal    (self, image_data, cur, steps, left)
+        # orthogonal    (self, image_data, cur, steps, left
         for ORIGIN in origins:
             # construct the arrows
             # center line -> left / right arc -> left / right line -> left / right arrowbase -> left / right arrowhead
@@ -367,8 +368,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
                     polyline = create_polyline(start_index, length)
                     lines.InsertNextCell(polyline)
                     start_index += length
-                    
-                print(points)
 
             line_lengths = [len(lst) for lst in [
                 center_line_backwards,
@@ -388,29 +387,29 @@ class consistentArrow(VTKPythonAlgorithmBase):
         poly_output.SetPoints(points)
         poly_output.SetLines(lines)
 
-        # Cell Colors
-        cell_colors = vtk.vtkUnsignedCharArray()
-        cell_colors.SetNumberOfComponents(3)
-        cell_colors.SetName("Cell Colors")
-        pink = [255,0,255]
-        orange = [255,165,0]
-        muddycyan = [0,204,204]
-        blueish = [0,128,255]
-        # each cell (polyline) gets its own color
-        # center line
-        cell_colors.InsertNextTuple(pink)
-        # bottom edge
-        cell_colors.InsertNextTuple(orange)
-        # left edge
-        cell_colors.InsertNextTuple(muddycyan)
-        # right edge
-        cell_colors.InsertNextTuple(muddycyan)
-        # left arrowbase
-        cell_colors.InsertNextTuple(blueish)
-        # right arrowbase
-        cell_colors.InsertNextTuple(blueish)
+        # # Cell Colors
+        # cell_colors = vtk.vtkUnsignedCharArray()
+        # cell_colors.SetNumberOfComponents(3)
+        # cell_colors.SetName("Cell Colors")
+        # pink = [255,0,255]
+        # orange = [255,165,0]
+        # muddycyan = [0,204,204]
+        # blueish = [0,128,255]
+        # # each cell (polyline) gets its own color
+        # # center line
+        # cell_colors.InsertNextTuple(pink)
+        # # bottom edge
+        # cell_colors.InsertNextTuple(orange)
+        # # left edge
+        # cell_colors.InsertNextTuple(muddycyan)
+        # # right edge
+        # cell_colors.InsertNextTuple(muddycyan)
+        # # left arrowbase
+        # cell_colors.InsertNextTuple(blueish)
+        # # right arrowbase
+        # cell_colors.InsertNextTuple(blueish)
         
-        poly_output.GetCellData().AddArray(cell_colors)
+        # poly_output.GetCellData().AddArray(cell_colors)
 
         end_time = time.time()
         print(f"Elapsed time: {end_time - start_time} s")
