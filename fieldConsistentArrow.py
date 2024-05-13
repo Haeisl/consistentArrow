@@ -93,7 +93,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
     def clip_point(self, image_data, point):
         # bounds to np array for easier manipulation
         bounds = np.array(image_data.GetBounds())
-        
+
         x_bounds = bounds[[0,1]]
         y_bounds = bounds[[2,3]]
 
@@ -331,19 +331,11 @@ class consistentArrow(VTKPythonAlgorithmBase):
                 left=False
             )
 
-            def construct_glyph(glyph_points, line_lengths, points, lines):
+            def construct_glyph(glyph_points, segments, points, lines):
                 # Initialize the starting index for glyph_points
                 index = 0
 
                 # Prepare the segment data based on the line lengths and corresponding segment points
-                segments = [
-                    (line_lengths[0] + line_lengths[1] + 1, center_line_backwards + [ORIGIN] + center_line_forwards),
-                    (line_lengths[2] + line_lengths[3] + 1, bottom_arc_left + [center_line_backwards[-1]] + bottom_arc_right),
-                    (line_lengths[4], side_line_left),
-                    (line_lengths[5], side_line_right),
-                    (line_lengths[6], arrowbase_left),
-                    (line_lengths[7], arrowbase_right)
-                ]
 
                 # Construct glyph_points and populate the vtkPoints
                 for length, segment_points in segments:
@@ -379,10 +371,18 @@ class consistentArrow(VTKPythonAlgorithmBase):
                 arrowbase_left,
                 arrowbase_right
             ]]
+            segments = [
+                    (line_lengths[0] + line_lengths[1] + 1, center_line_backwards + [ORIGIN] + center_line_forwards),
+                    (line_lengths[2] + line_lengths[3] + 1, bottom_arc_left + [center_line_backwards[-1]] + bottom_arc_right),
+                    (line_lengths[4], side_line_left),
+                    (line_lengths[5], side_line_right),
+                    (line_lengths[6], arrowbase_left),
+                    (line_lengths[7], arrowbase_right)
+            ]
             number_of_points = sum(line_lengths)
             glyph_points = [None] * (number_of_points + 2)
 
-            construct_glyph(glyph_points, line_lengths, points, lines)
+            construct_glyph(glyph_points, segments, points, lines)
 
         poly_output.SetPoints(points)
         poly_output.SetLines(lines)
@@ -408,7 +408,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         # cell_colors.InsertNextTuple(blueish)
         # # right arrowbase
         # cell_colors.InsertNextTuple(blueish)
-        
+
         # poly_output.GetCellData().AddArray(cell_colors)
 
         end_time = time.time()
