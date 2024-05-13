@@ -3,7 +3,6 @@ from vtkmodules.vtkCommonDataModel import vtkImageData, vtkDataObject, vtkPolyDa
 from vtk.vtkCommonCore import vtkDoubleArray
 from pyprtl.models.ModelBase import *
 import numpy as np
-from collections import deque
 import vtk
 import time
 #import multiprocessing
@@ -94,9 +93,13 @@ class consistentArrow(VTKPythonAlgorithmBase):
     def clip_point(self, image_data, point):
         # bounds to np array for easier manipulation
         bounds = np.array(image_data.GetBounds())
+        
+        x_bounds = bounds[[0,1]]
+        y_bounds = bounds[[2,3]]
 
         # clip x and y coordinates
-        point[:2] = np.clip(point[:2], bounds[::2], bounds[1::2])
+        point[0] = np.clip(point[0], x_bounds[0], x_bounds[1])
+        point[1] = np.clip(point[1], y_bounds[0], y_bounds[1])
 
         # set z coordinate to 0
         point[2] = 0.0
@@ -262,7 +265,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         side_line_length = self._length + int(np.floor(self._length/2.))
 
         origins = np.array([self._center[0], self._center[1], 0.0]).reshape((1,3))
-        print(f"Drawing glyph with midpoint at ({origins[0]},{origins[1]})")
+        print(f"Drawing glyph with midpoint at ({origins[0][0]},{origins[0][1]})")
 
         if self._grid_dims[0] > 0 and self._grid_dims[1] > 0:
             print(f"Drawing additional glyphs in a {self._grid_dims[0]}x{self._grid_dims[1]} grid")
@@ -364,6 +367,8 @@ class consistentArrow(VTKPythonAlgorithmBase):
                     polyline = create_polyline(start_index, length)
                     lines.InsertNextCell(polyline)
                     start_index += length
+                    
+                print(points)
 
             line_lengths = [len(lst) for lst in [
                 center_line_backwards,
@@ -404,6 +409,8 @@ class consistentArrow(VTKPythonAlgorithmBase):
         cell_colors.InsertNextTuple(blueish)
         # right arrowbase
         cell_colors.InsertNextTuple(blueish)
+        
+        poly_output.GetCellData().AddArray(cell_colors)
 
         end_time = time.time()
         print(f"Elapsed time: {end_time - start_time} s")
