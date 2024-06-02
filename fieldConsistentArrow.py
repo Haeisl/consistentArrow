@@ -238,32 +238,19 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         return points
 
+
     def construct_glyph(self, segments, points, lines):
-        # Initialize the starting index for glyph_points
-        index = 0
+        start_index = points.GetNumberOfPoints()
 
-        # Prepare the segment data based on the line lengths and corresponding segment points
-
-        # Construct glyph_points and populate the vtkPoints
         for length, segment_points in segments:
             for p in segment_points:
                 points.InsertNextPoint(p)
-            index += length
-
-        # Helper function to create a polyline and set point IDs
-        def create_polyline(start, length):
+                
             polyline = vtk.vtkPolyLine()
             polyline.GetPointIds().SetNumberOfIds(length)
             for i in range(length):
-                polyline.GetPointIds().SetId(i, start + i)
-            return polyline
-
-        # Starting index for each polyline
-        start_index = 0
-
-        # Create and insert each polyline
-        for length, _ in segments:
-            polyline = create_polyline(start_index, length)
+                polyline.GetPointIds().SetId(i, start_index + i)
+            
             lines.InsertNextCell(polyline)
             start_index += length
 
