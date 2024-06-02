@@ -238,7 +238,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         return points
 
-    def construct_glyph(self, glyph_points, segments, points, lines):
+    def construct_glyph(self, segments, points, lines):
         # Initialize the starting index for glyph_points
         index = 0
 
@@ -246,7 +246,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         # Construct glyph_points and populate the vtkPoints
         for length, segment_points in segments:
-            glyph_points[index:index + length] = segment_points
             for p in segment_points:
                 points.InsertNextPoint(p)
             index += length
@@ -377,10 +376,8 @@ class consistentArrow(VTKPythonAlgorithmBase):
                     (line_lengths[6], arrowbase_left),
                     (line_lengths[7], arrowbase_right)
             ]
-            number_of_points = sum(line_lengths)
-            glyph_points = [None] * (number_of_points + 2)
 
-            self.construct_glyph(glyph_points, segments, points, lines)
+            self.construct_glyph(segments, points, lines)
 
         poly_output.SetPoints(points)
         poly_output.SetLines(lines)
