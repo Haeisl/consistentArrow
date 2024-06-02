@@ -272,8 +272,10 @@ class consistentArrow(VTKPythonAlgorithmBase):
         lines = vtk.vtkCellArray()
 
         # set the integration method
-        integrate_standard = partial(getattr(self, f"{self._mode}_standard"), image_data=image_data)
-        integrate_orthogonal = partial(getattr(self, f"{self._mode}_orthogonal"), image_data=image_data)
+        integrate_std_fw = partial(getattr(self, f"{self._mode}_standard"), image_data=image_data, forward=True)
+        integrate_orth_l = partial(getattr(self, f"{self._mode}_orthogonal"), image_data=image_data, left=True)
+        integrate_std_bw = partial(getattr(self, f"{self._mode}_standard"), image_data=image_data, forward=False)
+        integrate_orth_r = partial(getattr(self, f"{self._mode}_orthogonal"), image_data=image_data, left=False)
 
         # set number of unit after which the arrow base starts for left / right lines
         side_line_length = self._length + int(np.floor(self._length/2.))
@@ -297,47 +299,27 @@ class consistentArrow(VTKPythonAlgorithmBase):
             # construct the arrows
             # center line -> left / right arc -> left / right line -> left / right arrowbase -> left / right arrowhead
 
-            # cur=ORIGIN,
-            # steps=self._length,
-            # forward=False
-            center_line_backwards = integrate_standard(ORIGIN, self._length, False)
+            center_line_backwards = integrate_std_bw(cur=ORIGIN, steps=self._length)
 
-            # cur=ORIGIN,
-            # steps=self._length,
-            # forward=True
-            center_line_forwards = integrate_standard(ORIGIN, self._length, True)
+            center_line_forwards = integrate_std_fw(cur=ORIGIN, steps=self._length)
 
-            # cur=center_line_backwards[-1], first point of the center line is the last point in the integration starting at origin and going backwards
-            # steps=self._thickness,
-            # left=True
-            bottom_arc_left = integrate_orthogonal(center_line_backwards[-1], self._thickness, True)
+            # first point of the center line is the last point in the integration starting at origin and going backwards
+            bottom_arc_left = integrate_orth_l(cur=center_line_backwards[-1], steps=self._thickness)
 
-            # image_data=image_data,
-            # cur=center_line_backwards[-1], # first point of the center line is the last point in the integration starting at origin and going backwards
-            # steps=self._thickness,
-            # left=False
-            bottom_arc_right = integrate_orthogonal(center_line_backwards[-1], self._thickness, False)
+            # first point of the center line is the last point in the integration starting at origin and going backwards
+            bottom_arc_right = integrate_orth_r(cur=center_line_backwards[-1], steps=self._thickness)
 
-            # image_data=image_data,
-            # cur=bottom_arc_left[-1], # first point of left line is last point of left arc
-            # steps=side_line_length,
-            # forward=True
-            side_line_left = integrate_standard(bottom_arc_left[-1], side_line_length, True)
+            # first point of left line is last point of left arc
+            side_line_left = integrate_std_fw(cur=bottom_arc_left[-1], steps=side_line_length)
 
-            # cur=bottom_arc_right[-1], # first point of right line is last point of right arc
-            # steps=side_line_length,
-            # forward=True
-            side_line_right = integrate_standard(bottom_arc_right[-1], side_line_length, True)
+            # first point of right line is last point of right arc
+            side_line_right = integrate_std_fw(cur=bottom_arc_right[-1], steps=side_line_length)
 
-            # cur=side_line_left[-1], # first point of left arrowbase is last point of left line
-            # steps=self._thickness,
-            # left=True
-            arrowbase_left = integrate_orthogonal(side_line_left[-1], self._thickness, True)
+            # first point of left arrowbase is last point of left line
+            arrowbase_left = integrate_orth_l(cur=side_line_left[-1], steps=self._thickness)
 
-            # cur=side_line_right[-1], # first point of right arrowbase is last point of right line
-            # steps=self._thickness,
-            # left=False
-            arrowbase_right = integrate_orthogonal(side_line_left[-1], self._thickness, False)
+            # first point of right arrowbase is last point of right line
+            arrowbase_right = integrate_orth_r(cur=side_line_left[-1], steps=self._thickness)
 
             line_lengths = [len(lst) for lst in [
                 center_line_backwards,
