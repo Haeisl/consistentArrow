@@ -1,12 +1,9 @@
 from vtkmodules.util.vtkAlgorithm import VTKPythonAlgorithmBase
 from vtkmodules.vtkCommonDataModel import vtkImageData, vtkDataObject, vtkPolyData
-from vtk.vtkCommonCore import vtkDoubleArray
 from pyprtl.models.ModelBase import *
 import numpy as np
 import vtk
 import time
-#import multiprocessing
-
 
 from paraview.util.vtkAlgorithm import smproxy, smproperty, smdomain
 
@@ -241,6 +238,36 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         return points
 
+    def construct_glyph(self, glyph_points, segments, points, lines):
+        # Initialize the starting index for glyph_points
+        index = 0
+
+        # Prepare the segment data based on the line lengths and corresponding segment points
+
+        # Construct glyph_points and populate the vtkPoints
+        for length, segment_points in segments:
+            glyph_points[index:index + length] = segment_points
+            for p in segment_points:
+                points.InsertNextPoint(p)
+            index += length
+
+        # Helper function to create a polyline and set point IDs
+        def create_polyline(start, length):
+            polyline = vtk.vtkPolyLine()
+            polyline.GetPointIds().SetNumberOfIds(length)
+            for i in range(length):
+                polyline.GetPointIds().SetId(i, start + i)
+            return polyline
+
+        # Starting index for each polyline
+        start_index = 0
+
+        # Create and insert each polyline
+        for length, _ in segments:
+            polyline = create_polyline(start_index, length)
+            lines.InsertNextCell(polyline)
+            start_index += length
+
 
     def RequestData(self, request, inInfo, outInfo):
         start_time = time.time()
@@ -331,36 +358,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
                 left=False
             )
 
-            def construct_glyph(glyph_points, segments, points, lines):
-                # Initialize the starting index for glyph_points
-                index = 0
-
-                # Prepare the segment data based on the line lengths and corresponding segment points
-
-                # Construct glyph_points and populate the vtkPoints
-                for length, segment_points in segments:
-                    glyph_points[index:index + length] = segment_points
-                    for p in segment_points:
-                        points.InsertNextPoint(p)
-                    index += length
-
-                # Helper function to create a polyline and set point IDs
-                def create_polyline(start, length):
-                    polyline = vtk.vtkPolyLine()
-                    polyline.GetPointIds().SetNumberOfIds(length)
-                    for i in range(length):
-                        polyline.GetPointIds().SetId(i, start + i)
-                    return polyline
-
-                # Starting index for each polyline
-                start_index = 0
-
-                # Create and insert each polyline
-                for length, _ in segments:
-                    polyline = create_polyline(start_index, length)
-                    lines.InsertNextCell(polyline)
-                    start_index += length
-
             line_lengths = [len(lst) for lst in [
                 center_line_backwards,
                 center_line_forwards,
@@ -371,6 +368,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
                 arrowbase_left,
                 arrowbase_right
             ]]
+
             segments = [
                     (line_lengths[0] + line_lengths[1] + 1, center_line_backwards + [ORIGIN] + center_line_forwards),
                     (line_lengths[2] + line_lengths[3] + 1, bottom_arc_left + [center_line_backwards[-1]] + bottom_arc_right),
@@ -382,7 +380,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
             number_of_points = sum(line_lengths)
             glyph_points = [None] * (number_of_points + 2)
 
-            construct_glyph(glyph_points, segments, points, lines)
+            self.construct_glyph(glyph_points, segments, points, lines)
 
         poly_output.SetPoints(points)
         poly_output.SetLines(lines)
