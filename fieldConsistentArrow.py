@@ -335,10 +335,10 @@ class consistentArrow(VTKPythonAlgorithmBase):
             segments = [
                     (line_lengths[0] + line_lengths[1] + 1, center_line_backwards + [ORIGIN] + center_line_forwards),
                     (line_lengths[2] + line_lengths[3] + 1, bottom_arc_left + [center_line_backwards[-1]] + bottom_arc_right),
-                    (line_lengths[4], side_line_left),
-                    (line_lengths[5], side_line_right),
-                    (line_lengths[6], arrowbase_left),
-                    (line_lengths[7], arrowbase_right)
+                    (line_lengths[4] + 1, [bottom_arc_left[-1]] + side_line_left),
+                    (line_lengths[5] + 1, [bottom_arc_right[-1]] + side_line_right),
+                    (line_lengths[6] + 1, [side_line_left[-1]] + arrowbase_left),
+                    (line_lengths[7] + 1, [side_line_right[-1]] + arrowbase_right)
             ]
 
             self.construct_glyph(segments, points, lines)
