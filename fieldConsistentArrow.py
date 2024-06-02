@@ -386,30 +386,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         poly_output.SetPoints(points)
         poly_output.SetLines(lines)
-
-        # # Cell Colors
-        # cell_colors = vtk.vtkUnsignedCharArray()
-        # cell_colors.SetNumberOfComponents(3)
-        # cell_colors.SetName("Cell Colors")
-        # pink = [255,0,255]
-        # orange = [255,165,0]
-        # muddycyan = [0,204,204]
-        # blueish = [0,128,255]
-        # # each cell (polyline) gets its own color
-        # # center line
-        # cell_colors.InsertNextTuple(pink)
-        # # bottom edge
-        # cell_colors.InsertNextTuple(orange)
-        # # left edge
-        # cell_colors.InsertNextTuple(muddycyan)
-        # # right edge
-        # cell_colors.InsertNextTuple(muddycyan)
-        # # left arrowbase
-        # cell_colors.InsertNextTuple(blueish)
-        # # right arrowbase
-        # cell_colors.InsertNextTuple(blueish)
-
-        # poly_output.GetCellData().AddArray(cell_colors)
+        print(lines.GetNumberOfCells())
 
         end_time = time.time()
         print(f"Elapsed time: {end_time - start_time} s")

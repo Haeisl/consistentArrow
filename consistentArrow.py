@@ -549,7 +549,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
         CENTER_START = centerLinePoints[0]
         CENTER_END = centerLinePoints[len(centerLinePoints) - 1]
 
-
         bottomArcLength = 2 * (thickness*steps) + 1
         bottomArcPoints = [None] * bottomArcLength
         for i in [1, 0]:
