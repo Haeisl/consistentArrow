@@ -273,12 +273,12 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         # set the integration method
         integrate_std_fw = partial(getattr(self, f"{self._mode}_standard"), image_data=image_data, forward=True)
-        integrate_orth_l = partial(getattr(self, f"{self._mode}_orthogonal"), image_data=image_data, left=True)
         integrate_std_bw = partial(getattr(self, f"{self._mode}_standard"), image_data=image_data, forward=False)
+        integrate_orth_l = partial(getattr(self, f"{self._mode}_orthogonal"), image_data=image_data, left=True)
         integrate_orth_r = partial(getattr(self, f"{self._mode}_orthogonal"), image_data=image_data, left=False)
 
-        # set number of unit after which the arrow base starts for left / right lines
-        side_line_length = self._length + int(np.floor(self._length/2.))
+        # set number of units after which the arrow base starts for left / right lines
+        side_line_length = self._length + int(self._length/2)
 
         origins = np.array([self._center[0], self._center[1], 0.0]).reshape((1,3))
         print(f"Drawing glyph with midpoint at ({origins[0][0]},{origins[0][1]})")
@@ -292,11 +292,8 @@ class consistentArrow(VTKPythonAlgorithmBase):
         # self._length          | Glyph center line total length
         # self._stepsize        | Stepsize for integration
         # self._thickness       | Glyph width; unit length of the arcs at the bottom of the arrow
-
-        # standard      (self, image_data, cur, steps, forward)
-        # orthogonal    (self, image_data, cur, steps, left
         for ORIGIN in origins:
-            # construct the arrows
+            # compute the points
             # center line -> left / right arc -> left / right line -> left / right arrowbase -> left / right arrowhead
 
             center_line_backwards = integrate_std_bw(cur=ORIGIN, steps=self._length)
@@ -319,7 +316,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
             arrowbase_left = integrate_orth_l(cur=side_line_left[-1], steps=self._thickness)
 
             # first point of right arrowbase is last point of right line
-            arrowbase_right = integrate_orth_r(cur=side_line_left[-1], steps=self._thickness)
+            arrowbase_right = integrate_orth_r(cur=side_line_right[-1], steps=self._thickness)
 
             line_lengths = [len(lst) for lst in [
                 center_line_backwards,
@@ -333,12 +330,12 @@ class consistentArrow(VTKPythonAlgorithmBase):
             ]]
 
             segments = [
-                    (line_lengths[0] + line_lengths[1] + 1, center_line_backwards + [ORIGIN] + center_line_forwards),
-                    (line_lengths[2] + line_lengths[3] + 1, bottom_arc_left + [center_line_backwards[-1]] + bottom_arc_right),
-                    (line_lengths[4] + 1, [bottom_arc_left[-1]] + side_line_left),
-                    (line_lengths[5] + 1, [bottom_arc_right[-1]] + side_line_right),
-                    (line_lengths[6] + 1, [side_line_left[-1]] + arrowbase_left),
-                    (line_lengths[7] + 1, [side_line_right[-1]] + arrowbase_right)
+                (line_lengths[0] + line_lengths[1] + 1, center_line_backwards[::-1] + [ORIGIN] + center_line_forwards),
+                (line_lengths[2] + line_lengths[3] + 1, bottom_arc_left[::-1] + [center_line_backwards[-1]] + bottom_arc_right),
+                (line_lengths[4] + 1, [bottom_arc_left[-1]] + side_line_left),
+                (line_lengths[5] + 1, [bottom_arc_right[-1]] + side_line_right),
+                (line_lengths[6] + 1, [side_line_left[-1]] + arrowbase_left),
+                (line_lengths[7] + 1, [side_line_right[-1]] + arrowbase_right)
             ]
 
             self.construct_glyph(segments, points, lines)
