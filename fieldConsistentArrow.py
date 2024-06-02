@@ -4,6 +4,7 @@ from pyprtl.models.ModelBase import *
 import numpy as np
 import vtk
 import time
+from functools import partial
 
 from paraview.util.vtkAlgorithm import smproxy, smproperty, smdomain
 
@@ -245,12 +246,12 @@ class consistentArrow(VTKPythonAlgorithmBase):
         for length, segment_points in segments:
             for p in segment_points:
                 points.InsertNextPoint(p)
-                
+
             polyline = vtk.vtkPolyLine()
             polyline.GetPointIds().SetNumberOfIds(length)
             for i in range(length):
                 polyline.GetPointIds().SetId(i, start_index + i)
-            
+
             lines.InsertNextCell(polyline)
             start_index += length
 
@@ -271,8 +272,8 @@ class consistentArrow(VTKPythonAlgorithmBase):
         lines = vtk.vtkCellArray()
 
         # set the integration method
-        integrate_standard = getattr(self, f"{self._mode}_standard")
-        integrate_orthogonal = getattr(self, f"{self._mode}_orthogonal")
+        integrate_standard = partial(getattr(self, f"{self._mode}_standard"), image_data=image_data)
+        integrate_orthogonal = partial(getattr(self, f"{self._mode}_orthogonal"), image_data=image_data)
 
         # set number of unit after which the arrow base starts for left / right lines
         side_line_length = self._length + int(np.floor(self._length/2.))
@@ -295,54 +296,48 @@ class consistentArrow(VTKPythonAlgorithmBase):
         for ORIGIN in origins:
             # construct the arrows
             # center line -> left / right arc -> left / right line -> left / right arrowbase -> left / right arrowhead
-            center_line_backwards = integrate_standard(
-                image_data=image_data,
-                cur=ORIGIN,
-                steps=self._length,
-                forward=False
-            )
-            center_line_forwards = integrate_standard(
-                image_data=image_data,
-                cur=ORIGIN,
-                steps=self._length,
-                forward=True
-            )
-            bottom_arc_left = integrate_orthogonal(
-                image_data=image_data,
-                cur=center_line_backwards[-1],# first point of the center line is the last point in the integration starting at origin and going backwards
-                steps=self._thickness,
-                left=True
-            )
-            bottom_arc_right = integrate_orthogonal(
-                image_data=image_data,
-                cur=center_line_backwards[-1], # first point of the center line is the last point in the integration starting at origin and going backwards
-                steps=self._thickness,
-                left=False
-            )
-            side_line_left = integrate_standard(
-                image_data=image_data,
-                cur=bottom_arc_left[-1], # first point of left line is last point of left arc
-                steps=side_line_length,
-                forward=True
-            )
-            side_line_right = integrate_standard(
-                image_data=image_data,
-                cur=bottom_arc_right[-1], # first point of right line is last point of right arc
-                steps=side_line_length,
-                forward=True
-            )
-            arrowbase_left = integrate_orthogonal(
-                image_data=image_data,
-                cur=side_line_left[-1], # first point of left arrowbase is last point of left line
-                steps=self._thickness,
-                left=True
-            )
-            arrowbase_right = integrate_orthogonal(
-                image_data,
-                cur=side_line_right[-1], # first point of right arrowbase is last point of right line
-                steps=self._thickness,
-                left=False
-            )
+
+            # cur=ORIGIN,
+            # steps=self._length,
+            # forward=False
+            center_line_backwards = integrate_standard(ORIGIN, self._length, False)
+
+            # cur=ORIGIN,
+            # steps=self._length,
+            # forward=True
+            center_line_forwards = integrate_standard(ORIGIN, self._length, True)
+
+            # cur=center_line_backwards[-1], first point of the center line is the last point in the integration starting at origin and going backwards
+            # steps=self._thickness,
+            # left=True
+            bottom_arc_left = integrate_orthogonal(center_line_backwards[-1], self._thickness, True)
+
+            # image_data=image_data,
+            # cur=center_line_backwards[-1], # first point of the center line is the last point in the integration starting at origin and going backwards
+            # steps=self._thickness,
+            # left=False
+            bottom_arc_right = integrate_orthogonal(center_line_backwards[-1], self._thickness, False)
+
+            # image_data=image_data,
+            # cur=bottom_arc_left[-1], # first point of left line is last point of left arc
+            # steps=side_line_length,
+            # forward=True
+            side_line_left = integrate_standard(bottom_arc_left[-1], side_line_length, True)
+
+            # cur=bottom_arc_right[-1], # first point of right line is last point of right arc
+            # steps=side_line_length,
+            # forward=True
+            side_line_right = integrate_standard(bottom_arc_right[-1], side_line_length, True)
+
+            # cur=side_line_left[-1], # first point of left arrowbase is last point of left line
+            # steps=self._thickness,
+            # left=True
+            arrowbase_left = integrate_orthogonal(side_line_left[-1], self._thickness, True)
+
+            # cur=side_line_right[-1], # first point of right arrowbase is last point of right line
+            # steps=self._thickness,
+            # left=False
+            arrowbase_right = integrate_orthogonal(side_line_left[-1], self._thickness, False)
 
             line_lengths = [len(lst) for lst in [
                 center_line_backwards,
@@ -368,7 +363,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         poly_output.SetPoints(points)
         poly_output.SetLines(lines)
-        print(lines.GetNumberOfCells())
 
         end_time = time.time()
         print(f"Elapsed time: {end_time - start_time} s")
