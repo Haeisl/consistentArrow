@@ -145,6 +145,11 @@ class consistentArrow(VTKPythonAlgorithmBase):
         return np.append(interpolated, 0)
 
 
+    def get_orthogonal(self, vector):
+        # return the orthogonal of a 2D vector (in 3D space, with z component = 0)
+        return np.array([vector[1], -vector[0], 0.])
+
+
     def rk4_standard(self, image_data, cur, steps, forward):
         # runge kutta 4 method for integration in a 2d vector field
         direction_forward = 1 if forward else -1
@@ -182,19 +187,23 @@ class consistentArrow(VTKPythonAlgorithmBase):
         while t < steps - 1e-4:
             # compute k_1 to k_4 for orthogonal vector field
             k_1 = self.bilinear_interpolation(image_data, cur)
-            k_1 = np.array([direction_left * k_1[1], -direction_left * k_1[0], 0.0]) * self.__scaling
+            k_1 = self.get_orthogonal(k_1) * direction_left * self.__scaling
+            # k_1 = np.array([direction_left * k_1[1], -direction_left * k_1[0], 0.0]) * self.__scaling
 
             mid_point_1 = cur + k_1 * 0.5
             k_2 = self.bilinear_interpolation(image_data, mid_point_1)
-            k_2 = np.array([direction_left * k_2[1], -direction_left * k_2[0], 0.0]) * self.__scaling
+            k_2 = self.get_orthogonal(k_2) * direction_left * self.__scaling
+            # k_2 = np.array([direction_left * k_2[1], -direction_left * k_2[0], 0.0]) * self.__scaling
 
             mid_point_2 = cur + k_2 * 0.5
             k_3 = self.bilinear_interpolation(image_data, mid_point_2)
-            k_3 = np.array([direction_left * k_3[1], -direction_left * k_3[0], 0.0]) * self.__scaling
+            k_3 = self.get_orthogonal(k_3) * direction_left * self.__scaling
+            # k_3 = np.array([direction_left * k_3[1], -direction_left * k_3[0], 0.0]) * self.__scaling
 
             end_point = cur + k_3
             k_4 = self.bilinear_interpolation(image_data, end_point)
-            k_4 = np.array([direction_left * k_4[1], -direction_left * k_4[0], 0.0]) * self.__scaling
+            k_4 = self.get_orthogonal(k_4) * direction_left * self.__scaling
+            # k_4 = np.array([direction_left * k_4[1], -direction_left * k_4[0], 0.0]) * self.__scaling
 
             next_point = cur + self._stepsize / 6.0 * (k_1 + 2*k_2 + 2*k_3 + k_4)
             next_point = self.clip_point(image_data, next_point)
@@ -230,7 +239,8 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         while t < steps - 1e-4:
             vec = self.bilinear_interpolation(image_data, cur)
-            vec = np.array([direction_left * vec[1], -direction_left * vec[0], 0.0]) * self.__scaling
+            vec = self.get_orthogonal(vec) * direction_left * self.__scaling
+            # vec = np.array([direction_left * vec[1], -direction_left * vec[0], 0.0]) * self.__scaling
             next_point = cur + direction_left * vec
             next_point = self.clip_point(image_data, next_point)
             points.append(next_point)
@@ -254,6 +264,11 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
             lines.InsertNextCell(polyline)
             start_index += length
+
+
+    def approx_equal(self, a, b, tol=1e-6):
+        return abs(a - b) <= tol
+
 
 
     def RequestData(self, request, inInfo, outInfo):
