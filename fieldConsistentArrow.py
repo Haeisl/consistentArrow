@@ -27,24 +27,28 @@ class consistentArrow(VTKPythonAlgorithmBase):
         return ["rk4", "euler"]
 
     @smproperty.stringvector(name="Variant", number_of_elements="1", default="rk4")
-    @smdomain.xml(\
-        """<StringListDomain name="list">
-                <RequiredProperties>
-                    <Property name="StringInfo" function="StringInfo"/>
-                </RequiredProperties>
-            </StringListDomain>
-        """)
+    @smdomain.xml("""
+        <StringListDomain name="list">
+            <RequiredProperties>
+                <Property name="StringInfo" function="StringInfo"/>
+            </RequiredProperties>
+        </StringListDomain>
+    """)
     def SetString(self, value):
         self._mode = value
         self.Modified()
 
-    @smproperty.xml(\
-        """<BooleanVectorProperty name="Normalize" command="SetNormalize" default_values="0">
-                <BooleanDomain name="bool"/>
-            </BooleanVectorProperty>
-        """)
-    def SetNormalize(self, normalize):
-        self._normalize = bool(normalize)
+    @smproperty.xml("""
+        <IntVectorProperty name="normalize"
+            label="Normalize"
+            command="SetNormalize"
+            number_of_elements="1"
+            default_values="0">
+            <BooleanDomain name="bool" />
+        </IntVectorProperty>
+    """)
+    def SetNormalize(self, val):
+        self._normalize = val
         self.Modified()
 
     @smproperty.doublevector(name="Center Point", default_values=[1., 1.])
