@@ -8,18 +8,18 @@ from functools import partial
 
 from paraview.util.vtkAlgorithm import smproxy, smproperty, smdomain
 
-@smproxy.filter(label="consistentArrow")
+@smproxy.filter(name="consistentArrow", label="Field Consistent Arrow Glyph")
 @smproperty.input(name="Input")
 @smproperty.xml("""<OutputPort name="PolyOutput" index="0" id="port0" />""")
 class consistentArrow(VTKPythonAlgorithmBase):
     def __init__(self):
         self._mode = "rk4"
+        self._normalize = False
         self._center = [1., 1.]
         self._thickness = 1.
         self._length = 7
         self._stepsize = 0.5
         self._grid_dims = [0, 0]
-        self.__scaling = 1/10
         VTKPythonAlgorithmBase.__init__(self, nInputPorts=1, nOutputPorts=1)
 
     @smproperty.stringvector(name="StringInfo", information_only="1")
@@ -36,6 +36,15 @@ class consistentArrow(VTKPythonAlgorithmBase):
         """)
     def SetString(self, value):
         self._mode = value
+        self.Modified()
+
+    @smproperty.xml(\
+        """<BooleanVectorProperty name="Normalize" command="SetNormalize" default_values="0">
+                <BooleanDomain name="bool"/>
+            </BooleanVectorProperty>
+        """)
+    def SetNormalize(self, normalize):
+        self._normalize = bool(normalize)
         self.Modified()
 
     @smproperty.doublevector(name="Center Point", default_values=[1., 1.])
@@ -141,6 +150,12 @@ class consistentArrow(VTKPythonAlgorithmBase):
                         q12 * (1 - t[0]) * t[1] +
                         q22 * t[0] * t[1])
 
+        # normalize the vector if required
+        if self._normalize:
+            norm = np.linalg.norm(interpolated)
+            if norm > 0:
+                interpolated /= norm
+
         # Append zero to the interpolated result to form a 3D vector
         return np.append(interpolated, 0)
 
@@ -158,16 +173,16 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         while t < steps - 1e-4:
             # compute k_1 to k_4 for standard vector field
-            k_1 = self.bilinear_interpolation(image_data, cur) * self.__scaling
+            k_1 = self.bilinear_interpolation(image_data, cur)
 
             mid_point_1 = cur + k_1 * 0.5
-            k_2 = self.bilinear_interpolation(image_data, mid_point_1) * self.__scaling
+            k_2 = self.bilinear_interpolation(image_data, mid_point_1)
 
             mid_point_2 = cur + k_2 * 0.5
-            k_3 = self.bilinear_interpolation(image_data, mid_point_2) * self.__scaling
+            k_3 = self.bilinear_interpolation(image_data, mid_point_2)
 
             end_point = cur + k_3
-            k_4 = self.bilinear_interpolation(image_data, end_point) * self.__scaling
+            k_4 = self.bilinear_interpolation(image_data, end_point)
 
             next_point = cur + direction_forward * self._stepsize / 6.0 * (k_1 + 2*k_2 + 2*k_3 + k_4)
             next_point = self.clip_point(image_data, next_point)
@@ -187,22 +202,22 @@ class consistentArrow(VTKPythonAlgorithmBase):
         while t < steps - 1e-4:
             # compute k_1 to k_4 for orthogonal vector field
             k_1 = self.bilinear_interpolation(image_data, cur)
-            k_1 = self.get_orthogonal(k_1) * direction_left * self.__scaling
+            k_1 = self.get_orthogonal(k_1) * direction_left
             # k_1 = np.array([direction_left * k_1[1], -direction_left * k_1[0], 0.0]) * self.__scaling
 
             mid_point_1 = cur + k_1 * 0.5
             k_2 = self.bilinear_interpolation(image_data, mid_point_1)
-            k_2 = self.get_orthogonal(k_2) * direction_left * self.__scaling
+            k_2 = self.get_orthogonal(k_2) * direction_left
             # k_2 = np.array([direction_left * k_2[1], -direction_left * k_2[0], 0.0]) * self.__scaling
 
             mid_point_2 = cur + k_2 * 0.5
             k_3 = self.bilinear_interpolation(image_data, mid_point_2)
-            k_3 = self.get_orthogonal(k_3) * direction_left * self.__scaling
+            k_3 = self.get_orthogonal(k_3) * direction_left
             # k_3 = np.array([direction_left * k_3[1], -direction_left * k_3[0], 0.0]) * self.__scaling
 
             end_point = cur + k_3
             k_4 = self.bilinear_interpolation(image_data, end_point)
-            k_4 = self.get_orthogonal(k_4) * direction_left * self.__scaling
+            k_4 = self.get_orthogonal(k_4) * direction_left
             # k_4 = np.array([direction_left * k_4[1], -direction_left * k_4[0], 0.0]) * self.__scaling
 
             next_point = cur + self._stepsize / 6.0 * (k_1 + 2*k_2 + 2*k_3 + k_4)
@@ -221,7 +236,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         points = []
 
         while t < steps - 1e-4:
-            vec = self.bilinear_interpolation(image_data, cur) * self.__scaling
+            vec = self.bilinear_interpolation(image_data, cur)
             next_point = cur + direction_forward * vec
             next_point = self.clip_point(image_data, next_point)
             points.append(next_point)
@@ -239,7 +254,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         while t < steps - 1e-4:
             vec = self.bilinear_interpolation(image_data, cur)
-            vec = self.get_orthogonal(vec) * direction_left * self.__scaling
+            vec = self.get_orthogonal(vec) * direction_left
             # vec = np.array([direction_left * vec[1], -direction_left * vec[0], 0.0]) * self.__scaling
             next_point = cur + direction_left * vec
             next_point = self.clip_point(image_data, next_point)
@@ -270,7 +285,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
         return abs(a - b) <= tol
 
 
-
     def RequestData(self, request, inInfo, outInfo):
         start_time = time.time()
 
@@ -296,11 +310,11 @@ class consistentArrow(VTKPythonAlgorithmBase):
         side_line_length = self._length + int(self._length/2)
 
         origins = np.array([self._center[0], self._center[1], 0.0]).reshape((1,3))
-        print(f"Drawing glyph with midpoint at ({origins[0][0]},{origins[0][1]})")
+        # print(f"Drawing glyph with midpoint at ({origins[0][0]},{origins[0][1]})")
 
-        print(f"{self._grid_dims=}")
+        # print(f"{self._grid_dims=}")
         if self._grid_dims[0] > 0 and self._grid_dims[1] > 0:
-            print(f"Drawing additional glyphs in a {self._grid_dims[0]}x{self._grid_dims[1]} grid")
+            # print(f"Drawing additional glyphs in a {self._grid_dims[0]}x{self._grid_dims[1]} grid")
             grid_points = self.generate_grid_points(bounds)
             origins = np.concatenate((origins, grid_points), axis=0)
 
@@ -333,7 +347,13 @@ class consistentArrow(VTKPythonAlgorithmBase):
             # first point of right arrowbase is last point of right line
             arrowbase_right = integrate_orth_r(cur=side_line_right[-1], steps=self._thickness)
 
-            line_lengths = [len(lst) for lst in [
+            # first point of left arrowhead is last point of left arrowbase
+            arrowhead_left = []
+
+            # first point of right arrowhead is last point of right arrowbase
+            arrowhead_right = []
+
+            line_lists = [
                 center_line_backwards,
                 center_line_forwards,
                 bottom_arc_left,
@@ -341,8 +361,12 @@ class consistentArrow(VTKPythonAlgorithmBase):
                 side_line_left,
                 side_line_right,
                 arrowbase_left,
-                arrowbase_right
-            ]]
+                arrowbase_right,
+                # arrowhead_left,
+                # arrowhead_right,
+            ]
+
+            line_lengths = [len(lst) for lst in line_lists]
 
             segments = [
                 (line_lengths[0] + line_lengths[1] + 1, center_line_backwards[::-1] + [ORIGIN] + center_line_forwards),
@@ -350,7 +374,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
                 (line_lengths[4] + 1, [bottom_arc_left[-1]] + side_line_left),
                 (line_lengths[5] + 1, [bottom_arc_right[-1]] + side_line_right),
                 (line_lengths[6] + 1, [side_line_left[-1]] + arrowbase_left),
-                (line_lengths[7] + 1, [side_line_right[-1]] + arrowbase_right)
+                (line_lengths[7] + 1, [side_line_right[-1]] + arrowbase_right),
             ]
 
             self.construct_glyph(segments, points, lines)
