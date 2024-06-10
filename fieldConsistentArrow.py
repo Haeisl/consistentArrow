@@ -286,8 +286,8 @@ class consistentArrow(VTKPythonAlgorithmBase):
             cur = start
 
             while True:
-                parallel_vec = parallel_func(cur=cur, steps=1) - start
-                orthogonal_vec = orthogonal_func(cur=cur, steps=1) - start
+                parallel_vec = parallel_func(cur=cur, steps=1)[0] - start
+                orthogonal_vec = orthogonal_func(cur=cur, steps=1)[0] - start
                 next = cur + factor_a * parallel_vec + factor_b * orthogonal_vec
 
                 dist = np.linalg.norm(end - next)
