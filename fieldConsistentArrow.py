@@ -309,14 +309,9 @@ class consistentArrow(VTKPythonAlgorithmBase):
             elif i == 1:
                 dist_1 = min_dist
             else:
-                if dist_0 > dist_1:
-                    dist_0 = dist_1
-                    dist_1 = min_dist
-                    factor_a_0 = factor_a_1
-                    factor_a_1 = factor_a
-                else:
-                    dist_1 = min_dist
-                    factor_a_1 = factor_a
+                distance_factors = [(dist_0, factor_a_0),(dist_1, factor_a_1),(min_dist, factor_a)]
+                distance_factors.sort(key=lambda x: x[0])
+                (dist_0, factor_a_0), (dist_1, factor_a_1) = distance_factors[:2]
 
         return points
 
