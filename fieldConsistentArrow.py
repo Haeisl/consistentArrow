@@ -169,13 +169,13 @@ class consistentArrow(VTKPythonAlgorithmBase):
         return np.array([vector[1], -vector[0], 0.])
 
 
-    def rk4_standard(self, image_data, cur, steps, forward):
+    def rk4_standard(self, image_data, cur, steps, forward, stepsize):
         # runge kutta 4 method for integration in a 2d vector field
         direction_forward = 1 if forward else -1
         t = 0
         points = []
 
-        while t < steps - 1e-4:
+        while t < steps:
             # compute k_1 to k_4 for standard vector field
             k_1 = self.bilinear_interpolation(image_data, cur)
 
@@ -192,18 +192,18 @@ class consistentArrow(VTKPythonAlgorithmBase):
             next_point = self.clip_point(image_data, next_point)
             points.append(next_point)
             cur = next_point
-            t += self._stepsize
+            t += stepsize
 
         return points
 
 
-    def rk4_orthogonal(self, image_data, cur, steps, left):
+    def rk4_orthogonal(self, image_data, cur, steps, left, stepsize):
         # runge kutta 4 method for integrating the orthogonal of the 2d vector field
         direction_left = -1 if left else 1
         t = 0
         points = []
 
-        while t < steps - 1e-4:
+        while t < steps:
             # compute k_1 to k_4 for orthogonal vector field
             k_1 = self.bilinear_interpolation(image_data, cur)
             k_1 = self.get_orthogonal(k_1) * direction_left
@@ -212,59 +212,111 @@ class consistentArrow(VTKPythonAlgorithmBase):
             mid_point_1 = cur + k_1 * 0.5
             k_2 = self.bilinear_interpolation(image_data, mid_point_1)
             k_2 = self.get_orthogonal(k_2) * direction_left
-            # k_2 = np.array([direction_left * k_2[1], -direction_left * k_2[0], 0.0]) * self.__scaling
 
             mid_point_2 = cur + k_2 * 0.5
             k_3 = self.bilinear_interpolation(image_data, mid_point_2)
             k_3 = self.get_orthogonal(k_3) * direction_left
-            # k_3 = np.array([direction_left * k_3[1], -direction_left * k_3[0], 0.0]) * self.__scaling
 
             end_point = cur + k_3
             k_4 = self.bilinear_interpolation(image_data, end_point)
             k_4 = self.get_orthogonal(k_4) * direction_left
-            # k_4 = np.array([direction_left * k_4[1], -direction_left * k_4[0], 0.0]) * self.__scaling
 
             next_point = cur + self._stepsize / 6.0 * (k_1 + 2*k_2 + 2*k_3 + k_4)
             next_point = self.clip_point(image_data, next_point)
             points.append(next_point)
             cur = next_point
-            t += self._stepsize
+            t += stepsize
 
         return points
 
 
-    def euler_standard(self, image_data, cur, steps, forward):
+    def euler_standard(self, image_data, cur, steps, forward, stepsize):
         # euler method for integrating a 2d vector field
         direction_forward = 1 if forward else -1
         t = 0
         points = []
 
-        while t < steps - 1e-4:
+        while t < steps:
             vec = self.bilinear_interpolation(image_data, cur)
             next_point = cur + direction_forward * vec
             next_point = self.clip_point(image_data, next_point)
             points.append(next_point)
             cur = next_point
-            t += self._stepsize
+            t += stepsize
 
         return points
 
 
-    def euler_orthogonal(self, image_data, cur, steps, left):
+    def euler_orthogonal(self, image_data, cur, steps, left, stepsize):
         # euler method for integrating the orthogonal of a 2d vector field
         direction_left = -1 if left else 1
         t = 0
         points = []
 
-        while t < steps - 1e-4:
+        while t < steps:
             vec = self.bilinear_interpolation(image_data, cur)
             vec = self.get_orthogonal(vec) * direction_left
-            # vec = np.array([direction_left * vec[1], -direction_left * vec[0], 0.0]) * self.__scaling
-            next_point = cur + direction_left * vec
+            next_point = cur + vec
             next_point = self.clip_point(image_data, next_point)
             points.append(next_point)
             cur = next_point
-            t += self._stepsize
+            t += stepsize
+
+        return points
+
+
+    def binary_search(self, image_data, start, end, parallel_func, orthogonal_func):
+        # first iteration a = 0, b = 1
+        # second iteration a = 1, b = 0
+        # third to n-th iteration a_n = (a_{n-1} + a_{n-2}) / 2
+        points = []
+        factor_a_0, factor_a_1 = 0., 1.
+        dist_0, dist_1 = np.inf, np.inf
+
+        for i in range(20):
+            if i == 0:
+                factor_a = factor_a_0
+            elif i == 1:
+                factor_a = factor_a_1
+            else:
+                factor_a = (factor_a_0 + factor_a_1) / 2.
+
+            factor_b = 1 - factor_a
+            min_dist = np.inf
+            cur = start
+
+            while True:
+                parallel_vec = parallel_func(cur=cur, steps=1) - start
+                orthogonal_vec = orthogonal_func(cur=cur, steps=1) - start
+                next = cur + factor_a * parallel_vec + factor_b * orthogonal_vec
+
+                dist = np.linalg.norm(end - next)
+
+                if dist <= 1e-3:
+                    points.append(next)
+                    return points
+
+                if dist <= min_dist:
+                    points.append(next)
+                    min_dist = dist
+                else:
+                    break
+
+                cur = next
+
+            if i == 0:
+                dist_0 = min_dist
+            elif i == 1:
+                dist_1 = min_dist
+            else:
+                if dist_0 > dist_1:
+                    dist_0 = dist_1
+                    dist_1 = min_dist
+                    factor_a_0 = factor_a_1
+                    factor_a_1 = factor_a
+                else:
+                    dist_1 = min_dist
+                    factor_a_1 = factor_a
 
         return points
 
@@ -285,10 +337,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
             start_index += length
 
 
-    def approx_equal(self, a, b, tol=1e-6):
-        return abs(a - b) <= tol
-
-
     def RequestData(self, request, inInfo, outInfo):
         start_time = time.time()
 
@@ -305,10 +353,15 @@ class consistentArrow(VTKPythonAlgorithmBase):
         lines = vtk.vtkCellArray()
 
         # set the integration method
-        integrate_std_fw = partial(getattr(self, f"{self._mode}_standard"), image_data=image_data, forward=True)
-        integrate_std_bw = partial(getattr(self, f"{self._mode}_standard"), image_data=image_data, forward=False)
-        integrate_orth_l = partial(getattr(self, f"{self._mode}_orthogonal"), image_data=image_data, left=True)
-        integrate_orth_r = partial(getattr(self, f"{self._mode}_orthogonal"), image_data=image_data, left=False)
+        integrate_std_fw = partial(getattr(self, f"{self._mode}_standard"), image_data=image_data, forward=True, stepsize=self._stepsize)
+        integrate_std_bw = partial(getattr(self, f"{self._mode}_standard"), image_data=image_data, forward=False, stepsize=self._stepsize)
+        integrate_orth_l = partial(getattr(self, f"{self._mode}_orthogonal"), image_data=image_data, left=True, stepsize=self._stepsize)
+        integrate_orth_r = partial(getattr(self, f"{self._mode}_orthogonal"), image_data=image_data, left=False, stepsize=self._stepsize)
+        # TODO: this may change:
+        integrate_arrowhead_std = partial(getattr(self, f"{self._mode}_standard"), image_data=image_data, forward=True, stepsize=1)
+        integrate_arrowhead_orth_l = partial(getattr(self, f"{self._mode}_orthogonal"), image_data=image_data, left=True, stepsize=1)
+        integrate_arrowhead_orth_r = partial(getattr(self, f"{self._mode}_orthogonal"), image_data=image_data, left=False, stepsize=1)
+        # TODO end
 
         # set number of units after which the arrow base starts for left / right lines
         side_line_length = self._length + int(self._length/2)
@@ -351,11 +404,25 @@ class consistentArrow(VTKPythonAlgorithmBase):
             # first point of right arrowbase is last point of right line
             arrowbase_right = integrate_orth_r(cur=side_line_right[-1], steps=self._thickness)
 
-            # first point of left arrowhead is last point of left arrowbase
-            arrowhead_left = []
 
+            # TODO: make this better lmao
+            # first point of left arrowhead is last point of left arrowbase
+            arrowhead_left = self.binary_search(
+                image_data=image_data,
+                start=arrowbase_left[-1],
+                end=center_line_forwards[-1],
+                parallel_func=integrate_arrowhead_std,
+                orthogonal_func=integrate_arrowhead_orth_r
+            )
             # first point of right arrowhead is last point of right arrowbase
-            arrowhead_right = []
+            arrowhead_right = self.binary_search(
+                image_data=image_data,
+                start=arrowbase_right[-1],
+                end=center_line_forwards[-1],
+                parallel_func=integrate_arrowhead_std,
+                orthogonal_func=integrate_arrowhead_orth_l
+            )
+            # TODO end
 
             line_lists = [
                 center_line_backwards,
@@ -366,8 +433,8 @@ class consistentArrow(VTKPythonAlgorithmBase):
                 side_line_right,
                 arrowbase_left,
                 arrowbase_right,
-                # arrowhead_left,
-                # arrowhead_right,
+                arrowhead_left,
+                arrowhead_right,
             ]
 
             line_lengths = [len(lst) for lst in line_lists]
@@ -379,6 +446,8 @@ class consistentArrow(VTKPythonAlgorithmBase):
                 (line_lengths[5] + 1, [bottom_arc_right[-1]] + side_line_right),
                 (line_lengths[6] + 1, [side_line_left[-1]] + arrowbase_left),
                 (line_lengths[7] + 1, [side_line_right[-1]] + arrowbase_right),
+                (line_lengths[8] + 2, [arrowbase_left[-1]] + arrowhead_left + [center_line_forwards[-1]]),
+                (line_lengths[9] + 2, [arrowbase_right[-1]] + arrowhead_right + [center_line_forwards[-1]])
             ]
 
             self.construct_glyph(segments, points, lines)
