@@ -19,7 +19,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         self._stepsize = 0.5
         self._scaling = 1.
         self._grid_dims = [0, 0]
-        self._length = 5
+        self._length = 5.
         self._thickness = 1.
         VTKPythonAlgorithmBase.__init__(self, nInputPorts=1, nOutputPorts=1)
 
@@ -78,7 +78,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         self._grid_dims = [rows, cols]
         self.Modified()
 
-    @smproperty.intvector(name="Glyph Length", number_of_elements=1, default_values=5.)
+    @smproperty.doublevector(name="Glyph Length", number_of_elements=1, default_values=5.)
     @smdomain.doublerange(min=0.5, max=10)
     def SetLength(self, l):
         self._length = l
@@ -125,7 +125,8 @@ class consistentArrow(VTKPythonAlgorithmBase):
         point[1] = np.clip(point[1], y_bounds[0], y_bounds[1])
 
         # set z coordinate to 0
-        point[2] = 0.0
+        if len(point) == 3:
+            point[2] = 0.0
 
         return point
 
@@ -133,16 +134,11 @@ class consistentArrow(VTKPythonAlgorithmBase):
     def bilinear_interpolation(self, image_data, point):
         # Get essential grid properties
         dimensions = np.array(image_data.GetDimensions())
-        # bounds = np.array(image_data.GetBounds())
         spacing = np.array(image_data.GetSpacing())
         origin = np.array(image_data.GetOrigin())
 
         # Clip point to be within the bounds
         point = self.clip_point(image_data, point)
-        # point = np.array([
-        #     max(bounds[0], min(point[0], bounds[1])),
-        #     max(bounds[2], min(point[1], bounds[3]))
-        # ])
 
         # Calculate the indices for the corners of the cell containing the point
         indices = np.floor((point - origin[:2]) / spacing[:2]).astype(int)
@@ -338,7 +334,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         stepsize = self._stepsize
         thickness = self._thickness
         length = self._length
-        side_line_length = length * 3/2
+        side_line_length = length * 1.5
 
         # Integration functions
         standard = getattr(self, f"{self._mode}_standard")
