@@ -334,46 +334,44 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
 
     def compute_line_points(self, image_data, origin):
-        # get relevant lengths
+        # Constants
         stepsize = self._stepsize
         thickness = self._thickness
         length = self._length
-
-        # set number of units after which the arrow base starts for left / right lines
         side_line_length = length * 3/2
 
-        # get both integration methods
+        # Integration functions
         standard = getattr(self, f"{self._mode}_standard")
         orthogonal = getattr(self, f"{self._mode}_orthogonal")
 
-        # set up partial functions for specific integration directions
+        # Partial functions
         integrate_standard = partial(standard, image_data=image_data, stepsize=stepsize)
         integrate_orthogonal = partial(orthogonal, image_data=image_data, stepsize=stepsize)
 
-        # arrowhead integration is special -> we only ever perform a single integration step
         arrowhead_standard = partial(standard, image_data=image_data, forward=True, stepsize=1)
         arrowhead_orthogonal_l = partial(orthogonal, image_data=image_data, left=True, stepsize=1)
         arrowhead_orthogonal_r = partial(orthogonal, image_data=image_data, left=False, stepsize=1)
 
-        # compute the lines / points
+        # Compute center lines
         center_line_backwards = integrate_standard(cur=origin, forward=False, steps=length)
         center_line_forwards = integrate_standard(cur=origin, forward=True, steps=length)
+        # Compute bottom arcs
         bottom_arc_left = integrate_orthogonal(cur=center_line_backwards[-1], left=True, steps=thickness)
         bottom_arc_right = integrate_orthogonal(cur=center_line_backwards[-1], left=False, steps=thickness)
+        # Compute side lines
         side_line_left = integrate_standard(cur=bottom_arc_left[-1], forward=True, steps=side_line_length)
         side_line_right = integrate_standard(cur=bottom_arc_right[-1], forward=True, steps=side_line_length)
+        # Compute arrow bases
         arrowbase_left = integrate_orthogonal(cur=side_line_left[-1], left=True, steps=thickness)
         arrowbase_right = integrate_orthogonal(cur=side_line_right[-1], left=False, steps=thickness)
 
-        # first point of left arrowhead is last point of left arrowbase
+        # Compute arrow heads
         arrowhead_left = self.binary_search(
             start=arrowbase_left[-1],
             end=center_line_forwards[-1],
             parallel_func=arrowhead_standard,
             orthogonal_func=arrowhead_orthogonal_r
         )
-
-        # first point of right arrowhead is last point of right arrowbase
         arrowhead_right = self.binary_search(
             start=arrowbase_right[-1],
             end=center_line_forwards[-1],
@@ -430,25 +428,25 @@ class consistentArrow(VTKPythonAlgorithmBase):
             origins = np.concatenate((origins, grid_points), axis=0)
 
         for ORIGIN in origins:
-            line_lists = self.compute_line_points(image_data=image_data, origin=ORIGIN)
+            point_lists = self.compute_line_points(image_data=image_data, origin=ORIGIN)
 
-            line_lengths = [len(lst) for lst in line_lists]
+            line_lengths = [len(lst) for lst in point_lists]
 
-            # line_lists =
+            # point_lists =
             #     0: center_line_backwards,     1:center_line_forwards,
             #     2: bottom_arc_left,           3: bottom_arc_right,
             #     4: side_line_left,            5: side_line_right,
             #     6: arrowbase_left,            7: arrowbase_right,
             #     8: arrowhead_left,            9: arrowhead_right
             segments = [
-                (line_lengths[0] + line_lengths[1] + 1, line_lists[0][::-1] + [ORIGIN] + line_lists[1]),
-                (line_lengths[2] + line_lengths[3] + 1, line_lists[2][::-1] + [line_lists[0][-1]] + line_lists[3]),
-                (line_lengths[4] + 1, [line_lists[2][-1]] + line_lists[4]),
-                (line_lengths[5] + 1, [line_lists[3][-1]] + line_lists[5]),
-                (line_lengths[6] + 1, [line_lists[4][-1]] + line_lists[6]),
-                (line_lengths[7] + 1, [line_lists[5][-1]] + line_lists[7]),
-                (line_lengths[8] + 2, [line_lists[6][-1]] + line_lists[8] + [line_lists[1][-1]]),
-                (line_lengths[9] + 2, [line_lists[7][-1]] + line_lists[9] + [line_lists[1][-1]])
+                (line_lengths[0] + line_lengths[1] + 1, point_lists[0][::-1] + [ORIGIN] + point_lists[1]),
+                (line_lengths[2] + line_lengths[3] + 1, point_lists[2][::-1] + [point_lists[0][-1]] + point_lists[3]),
+                (line_lengths[4] + 1, [point_lists[2][-1]] + point_lists[4]),
+                (line_lengths[5] + 1, [point_lists[3][-1]] + point_lists[5]),
+                (line_lengths[6] + 1, [point_lists[4][-1]] + point_lists[6]),
+                (line_lengths[7] + 1, [point_lists[5][-1]] + point_lists[7]),
+                (line_lengths[8] + 2, [point_lists[6][-1]] + point_lists[8] + [point_lists[1][-1]]),
+                (line_lengths[9] + 2, [point_lists[7][-1]] + point_lists[9] + [point_lists[1][-1]])
             ]
 
             self.construct_glyph(segments, points, lines)
