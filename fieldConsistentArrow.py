@@ -125,8 +125,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         point[1] = np.clip(point[1], y_bounds[0], y_bounds[1])
 
         # set z coordinate to 0
-        if len(point) == 3:
-            point[2] = 0.0
+        point[2] = 0.0
 
         return point
 
@@ -141,11 +140,11 @@ class consistentArrow(VTKPythonAlgorithmBase):
         point = self.clip_point(image_data, point)
 
         # Calculate the indices for the corners of the cell containing the point
-        indices = np.floor((point - origin[:2]) / spacing[:2]).astype(int)
+        indices = np.floor((point[:2] - origin[:2]) / spacing[:2]).astype(int)
         indices = np.clip(indices, 0, dimensions[:2] - 2)
 
         # Compute the fractional part within the cell
-        t = (point - (origin[:2] + indices * spacing[:2])) / spacing[:2]
+        t = (point[:2] - (origin[:2] + indices * spacing[:2])) / spacing[:2]
 
         # Retrieve corner values using direct NumPy array access
         def get_value_at_index(idx):
@@ -296,7 +295,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
             min_dist = np.inf
             cur = start
 
-            while True:
+            for _ in range(1000):
                 parallel_vec = parallel_func(cur=cur, steps=1)[0] - cur
                 orthogonal_vec = orthogonal_func(cur=cur, steps=1)[0] - cur
                 next = cur + factor_a * parallel_vec + factor_b * orthogonal_vec
