@@ -62,7 +62,14 @@ class consistentArrow(VTKPythonAlgorithmBase):
         self._center = [x, y]
         self.Modified()
 
-    @smproperty.intvector(name="Grid [rows | cols]", number_of_elements=2, default_values=[0,0])
+    #@smproperty.intvector(name="Grid [rows | cols]", number_of_elements=2, default_values=[0,0])
+    @smproperty.xml("""
+        <IntVectorProperty name="Grid [rows | cols]"
+                           command="SetGridDims"
+                           number_of_elements="2"
+                           default_values="0.0 0.0"
+                           panel_visibility="advanced
+    """)
     @smdomain.intrange(min=1,max=10)
     def SetGridDims(self, rows, cols):
         self._grid_dims = [rows, cols]
@@ -70,14 +77,14 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
     @smproperty.doublevector(name="Stepsize", number_of_elements=1, default_values=0.5)
     @smdomain.doublerange()
-    @smproperty.panel_visibility("advanced")
+    #@smproperty.panel_visibility("advanced")
     def SetGrain(self, d):
         self._stepsize = d
         self.Modified()
 
     @smproperty.doublevector(name="Glyph scaling", number_of_elements=1, default_values=1.)
     @smdomain.doublerange(min=0.1, max=2)
-    @smproperty.panel_visibility("advanced")
+    #@smproperty.panel_visibility("advanced")
     def SetScaling(self, s):
         self._scaling = s
         self.Modified()
