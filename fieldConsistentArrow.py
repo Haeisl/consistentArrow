@@ -1,11 +1,11 @@
-from vtkmodules.util.vtkAlgorithm import VTKPythonAlgorithmBase
-from vtkmodules.vtkCommonDataModel import vtkImageData, vtkDataObject, vtkPolyData
-from pyprtl.models.ModelBase import *
-import numpy as np
-import vtk
 import time
 from functools import partial
 
+import numpy as np
+
+from vtk import vtkPolyLine, vtkPoints, vtkCellArray
+from vtkmodules.util.vtkAlgorithm import VTKPythonAlgorithmBase
+from vtkmodules.vtkCommonDataModel import vtkImageData, vtkDataObject, vtkPolyData
 from paraview.util.vtkAlgorithm import smproxy, smproperty, smdomain
 
 @smproxy.filter(name="consistentArrow", label="Field Consistent Arrow Glyph")
@@ -13,18 +13,20 @@ from paraview.util.vtkAlgorithm import smproxy, smproperty, smdomain
 @smproperty.xml("""<OutputPort name="PolyOutput" index="0" id="port0" />""")
 class consistentArrow(VTKPythonAlgorithmBase):
     def __init__(self):
+        # ---default---
         self._mode = "rk4"
-        self._normalize = False
+        self._normalize = True
         self._center = [1., 1.]
+        self._grid_dims = [0, 0]
+        # ---advanced---
         self._stepsize = 0.5
         self._scaling = 1.
-        self._grid_dims = [0, 0]
         self._length = 5.
         self._thickness = 1.
         VTKPythonAlgorithmBase.__init__(self, nInputPorts=1, nOutputPorts=1)
 
     @smproperty.stringvector(name="StringInfo", information_only="1")
-    def GetStrings(self):
+    def GetVariants(self):
         return ["rk4", "euler"]
 
     @smproperty.stringvector(name="Variant", number_of_elements="1", default="rk4")
@@ -35,17 +37,17 @@ class consistentArrow(VTKPythonAlgorithmBase):
             </RequiredProperties>
         </StringListDomain>
     """)
-    def SetString(self, value):
+    def SetVariant(self, value):
         self._mode = value
         self.Modified()
 
     @smproperty.xml(
         """
-        <IntVectorProperty name="normalize"
+        <IntVectorProperty name="Normalize"
             label="Normalize"
             command="SetNormalize"
             number_of_elements="1"
-            default_values="0">
+            default_values="1">
             <BooleanDomain name="bool" />
         </IntVectorProperty>
         """
@@ -60,32 +62,36 @@ class consistentArrow(VTKPythonAlgorithmBase):
         self._center = [x, y]
         self.Modified()
 
-    @smproperty.doublevector(name="Stepsize", number_of_elements=1, default_values=0.5)
-    @smdomain.doublerange(min=0.1, max=1)
-    def SetGrain(self, d):
-        self._stepsize = d
-        self.Modified()
-
-    @smproperty.doublevector(name="Glyph scaling", number_of_elements=1, default_values=1.)
-    @smdomain.doublerange(min=0.1, max=2)
-    def SetScaling(self, s):
-        self._scaling = s
-        self.Modified()
-
     @smproperty.intvector(name="Grid [rows | cols]", number_of_elements=2, default_values=[0,0])
     @smdomain.intrange(min=1,max=10)
     def SetGridDims(self, rows, cols):
         self._grid_dims = [rows, cols]
         self.Modified()
 
+    @smproperty.doublevector(name="Stepsize", number_of_elements=1, default_values=0.5)
+    @smdomain.doublerange()
+    @smproperty.panel_visibility("advanced")
+    def SetGrain(self, d):
+        self._stepsize = d
+        self.Modified()
+
+    @smproperty.doublevector(name="Glyph scaling", number_of_elements=1, default_values=1.)
+    @smdomain.doublerange(min=0.1, max=2)
+    @smproperty.panel_visibility("advanced")
+    def SetScaling(self, s):
+        self._scaling = s
+        self.Modified()
+
     @smproperty.doublevector(name="Glyph Length", number_of_elements=1, default_values=5.)
-    @smdomain.doublerange(min=0.5, max=10)
+    @smdomain.doublerange()
+    @smproperty.panel_visibility("advanced")
     def SetLength(self, l):
         self._length = l
         self.Modified()
 
     @smproperty.doublevector(name="Glyph Width", number_of_elements=1, default_values=1.)
-    @smdomain.doublerange(min=0.5, max=5)
+    @smdomain.doublerange()
+    @smproperty.panel_visibility("advanced")
     def SetThickness(self, d):
         self._thickness = d
         self.Modified()
@@ -392,7 +398,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
             for p in segment_points:
                 points.InsertNextPoint(p)
 
-            polyline = vtk.vtkPolyLine()
+            polyline = vtkPolyLine()
             polyline.GetPointIds().SetNumberOfIds(length)
             for i in range(length):
                 polyline.GetPointIds().SetId(i, start_index + i)
@@ -412,9 +418,9 @@ class consistentArrow(VTKPythonAlgorithmBase):
         bounds = image_data.GetBounds()
 
         # points object to hold all the line points
-        points = vtk.vtkPoints()
+        points = vtkPoints()
         # cell array to store the lines' connectivity
-        lines = vtk.vtkCellArray()
+        lines = vtkCellArray()
 
         origins = np.array([self._center[0], self._center[1], 0.0]).reshape((1,3))
 
