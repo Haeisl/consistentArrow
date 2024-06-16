@@ -25,6 +25,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         self._thickness = 1.
         VTKPythonAlgorithmBase.__init__(self, nInputPorts=1, nOutputPorts=1)
 
+    #---default---
     @smproperty.stringvector(name="StringInfo", information_only="1")
     def GetVariants(self):
         return ["rk4", "euler"]
@@ -41,17 +42,14 @@ class consistentArrow(VTKPythonAlgorithmBase):
         self._mode = value
         self.Modified()
 
-    @smproperty.xml(
-        """
+    @smproperty.xml("""
         <IntVectorProperty name="Normalize"
-            label="Normalize"
-            command="SetNormalize"
-            number_of_elements="1"
-            default_values="1">
+                           command="SetNormalize"
+                           number_of_elements="1"
+                           default_values="1">
             <BooleanDomain name="bool" />
         </IntVectorProperty>
-        """
-    )
+    """)
     def SetNormalize(self, val):
         self._normalize = val
         self.Modified()
@@ -62,43 +60,65 @@ class consistentArrow(VTKPythonAlgorithmBase):
         self._center = [x, y]
         self.Modified()
 
-    #@smproperty.intvector(name="Grid [rows | cols]", number_of_elements=2, default_values=[0,0])
     @smproperty.xml("""
         <IntVectorProperty name="Grid [rows | cols]"
                            command="SetGridDims"
                            number_of_elements="2"
-                           default_values="0.0 0.0"
-                           panel_visibility="advanced
+                           default_values="0.0 0.0">
+            <IntRangeDomain name="range" min="1" max="10" />
+        </IntVectorProperty>
     """)
-    @smdomain.intrange(min=1,max=10)
     def SetGridDims(self, rows, cols):
         self._grid_dims = [rows, cols]
         self.Modified()
 
-    @smproperty.doublevector(name="Stepsize", number_of_elements=1, default_values=0.5)
-    @smdomain.doublerange()
-    #@smproperty.panel_visibility("advanced")
-    def SetGrain(self, d):
+    #---advanced---
+    @smproperty.xml("""
+        <DoubleVectorProperty name="Stepsize"
+                              command="SetStepSize"
+                              number_of_elements="1"
+                              default_values="0.5"
+                              panel_visibility="advanced">
+        </DoubleVectorProperty>
+    """)
+    def SetStepSize(self, d):
         self._stepsize = d
         self.Modified()
 
-    @smproperty.doublevector(name="Glyph scaling", number_of_elements=1, default_values=1.)
-    @smdomain.doublerange(min=0.1, max=2)
-    #@smproperty.panel_visibility("advanced")
+    @smproperty.xml("""
+        <DoubleVectorProperty name="Glyph scaling"
+                              command="SetScaling"
+                              number_of_elements="1"
+                              default_values="1."
+                              panel_visibility="advanced">
+            <DoubleRangeDomain name="range" min="0.0" max="2.0" />
+        </DoubleVectorProperty>
+    """)
     def SetScaling(self, s):
         self._scaling = s
         self.Modified()
 
-    @smproperty.doublevector(name="Glyph Length", number_of_elements=1, default_values=5.)
-    @smdomain.doublerange()
-    @smproperty.panel_visibility("advanced")
+
+    @smproperty.xml("""
+        <DoubleVectorProperty name="Glyph Length"
+                              command="SetLength"
+                              number_of_elements="1"
+                              default_values="5."
+                              panel_visibility="advanced">
+        </DoubleVectorProperty>
+    """)
     def SetLength(self, l):
         self._length = l
         self.Modified()
 
-    @smproperty.doublevector(name="Glyph Width", number_of_elements=1, default_values=1.)
-    @smdomain.doublerange()
-    @smproperty.panel_visibility("advanced")
+    @smproperty.xml("""
+        <DoubleVectorProperty name="Glyph Width"
+                              command="SetThickness"
+                              number_of_elements="1"
+                              default_values="1."
+                              panel_visibility="advanced">
+        </DoubleVectorProperty>
+    """)
     def SetThickness(self, d):
         self._thickness = d
         self.Modified()
