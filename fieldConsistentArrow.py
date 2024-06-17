@@ -147,7 +147,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         Clip given point to edges of image data's bounding box and set z to 0.
         """
         # Clip x and y coordinates
-        point[:2] = np.clip(point[:2], bounds[::2], bounds[1::2])
+        point = np.clip(point, bounds[::2], bounds[1::2])
 
         # Set z coordinate to 0
         point[2] = 0.0
