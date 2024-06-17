@@ -201,13 +201,13 @@ class consistentArrow(VTKPythonAlgorithmBase):
         return np.array([vector[1], -vector[0], 0.])
 
 
-    def rk4_standard(self, image_data, cur, steps, forward, stepsize):
+    def rk4_standard(self, image_data, cur, steps, forward, stepsize, single=False):
         # runge kutta 4 method for integration in a 2d vector field
         direction_forward = 1 if forward else -1
         points = []
         bounds = np.array(image_data.GetBounds())
 
-        num_steps = int(steps / stepsize)
+        num_steps = int(steps / stepsize) if not single else 1
 
         for _ in range(num_steps):
             # compute k_1 to k_4 for standard vector field
@@ -231,13 +231,13 @@ class consistentArrow(VTKPythonAlgorithmBase):
         return points
 
 
-    def rk4_orthogonal(self, image_data, cur, steps, left, stepsize):
+    def rk4_orthogonal(self, image_data, cur, steps, left, stepsize, single=False):
         # runge kutta 4 method for integrating the orthogonal of the 2d vector field
         direction_left = -1 if left else 1
         points = []
         bounds = np.array(image_data.GetBounds())
 
-        num_steps = int(steps / stepsize)
+        num_steps = int(steps / stepsize) if not single else 1
 
         for _ in range(num_steps):
             # compute k_1 to k_4 for orthogonal vector field
@@ -246,17 +246,17 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
             mid_point_1 = cur + k_1 * 0.5
             k_2 = self.bilinear_interpolation(image_data, mid_point_1)
-            k_2 = self.get_orthogonal(k_2) * direction_left
+            k_2 = self.get_orthogonal(k_2)
 
             mid_point_2 = cur + k_2 * 0.5
             k_3 = self.bilinear_interpolation(image_data, mid_point_2)
-            k_3 = self.get_orthogonal(k_3) * direction_left
+            k_3 = self.get_orthogonal(k_3)
 
             end_point = cur + k_3
             k_4 = self.bilinear_interpolation(image_data, end_point)
-            k_4 = self.get_orthogonal(k_4) * direction_left
+            k_4 = self.get_orthogonal(k_4)
 
-            vec = self._stepsize * (k_1 + 2*k_2 + 2*k_3 + k_4) / 6.0
+            vec = direction_left * stepsize * (k_1 + 2*k_2 + 2*k_3 + k_4) / 6.0
             next_point = cur + vec * self._scaling
             next_point = self.clip_point(bounds, next_point)
             points.append(next_point)
@@ -265,13 +265,13 @@ class consistentArrow(VTKPythonAlgorithmBase):
         return points
 
 
-    def euler_standard(self, image_data, cur, steps, forward, stepsize):
+    def euler_standard(self, image_data, cur, steps, forward, stepsize, single=False):
         # euler method for integrating a 2d vector field
         direction_forward = 1 if forward else -1
         points = []
         bounds = np.array(image_data.GetBounds())
 
-        num_steps = int(steps / stepsize)
+        num_steps = int(steps / stepsize) if not single else 1
 
         for _ in range(num_steps):
             vec = self.bilinear_interpolation(image_data, cur)
@@ -283,13 +283,13 @@ class consistentArrow(VTKPythonAlgorithmBase):
         return points
 
 
-    def euler_orthogonal(self, image_data, cur, steps, left, stepsize):
+    def euler_orthogonal(self, image_data, cur, steps, left, stepsize, single=False):
         # euler method for integrating the orthogonal of a 2d vector field
         direction_left = -1 if left else 1
         points = []
         bounds = np.array(image_data.GetBounds())
 
-        num_steps = int(steps / stepsize)
+        num_steps = int(steps / stepsize) if not single else 1
 
         for _ in range(num_steps):
             vec = self.bilinear_interpolation(image_data, cur)
@@ -370,9 +370,9 @@ class consistentArrow(VTKPythonAlgorithmBase):
         integrate_standard = partial(standard, image_data=image_data, stepsize=stepsize)
         integrate_orthogonal = partial(orthogonal, image_data=image_data, stepsize=stepsize)
 
-        arrowhead_standard = partial(standard, image_data=image_data, forward=True, stepsize=1)
-        arrowhead_orthogonal_l = partial(orthogonal, image_data=image_data, left=True, stepsize=1)
-        arrowhead_orthogonal_r = partial(orthogonal, image_data=image_data, left=False, stepsize=1)
+        arrowhead_standard = partial(standard, image_data=image_data, forward=True, stepsize=stepsize, single=True)
+        arrowhead_orthogonal_l = partial(orthogonal, image_data=image_data, left=True, stepsize=stepsize, single=True)
+        arrowhead_orthogonal_r = partial(orthogonal, image_data=image_data, left=False, stepsize=stepsize, single=True)
 
         # Compute center lines
         center_line_backwards = integrate_standard(cur=origin, forward=False, steps=length)
