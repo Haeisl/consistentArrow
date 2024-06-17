@@ -143,21 +143,14 @@ class consistentArrow(VTKPythonAlgorithmBase):
         return grid_points
 
 
-    def clip_point(self, image_data, point):
+    def clip_point(self, bounds, point):
         """
-        Clip given point to edges of image data's bounding box.
+        Clip given point to edges of image data's bounding box and set z to 0.
         """
-        # bounds to np array for easier manipulation
-        bounds = np.array(image_data.GetBounds())
+        # Clip x and y coordinates
+        point[:2] = np.clip(point[:2], bounds[::2], bounds[1::2])
 
-        x_bounds = bounds[[0,1]]
-        y_bounds = bounds[[2,3]]
-
-        # clip x and y coordinates
-        point[0] = np.clip(point[0], x_bounds[0], x_bounds[1])
-        point[1] = np.clip(point[1], y_bounds[0], y_bounds[1])
-
-        # set z coordinate to 0
+        # Set z coordinate to 0
         point[2] = 0.0
 
         return point
@@ -168,9 +161,10 @@ class consistentArrow(VTKPythonAlgorithmBase):
         dimensions = np.array(image_data.GetDimensions())
         spacing = np.array(image_data.GetSpacing())
         origin = np.array(image_data.GetOrigin())
+        bounds = np.array(image_data.GetBounds())
 
         # Clip point to be within the bounds
-        point = self.clip_point(image_data, point)
+        point = self.clip_point(bounds, point)
 
         # Calculate the indices for the corners of the cell containing the point
         indices = np.floor((point[:2] - origin[:2]) / spacing[:2]).astype(int)
@@ -179,17 +173,15 @@ class consistentArrow(VTKPythonAlgorithmBase):
         # Compute the fractional part within the cell
         t = (point[:2] - (origin[:2] + indices * spacing[:2])) / spacing[:2]
 
-        # Retrieve corner values using direct NumPy array access
-        def get_value_at_index(idx):
-            index_flat = idx[1] * dimensions[0] + idx[0]
-            return np.array(image_data.GetPointData().GetArray(0).GetTuple(index_flat))
+        data_array = np.array(image_data.GetPointData().GetArray(0))
+        index_flat = lambda idx: idx[1] * dimensions[0] + idx[0]
 
-        q11 = get_value_at_index(indices)
-        q21 = get_value_at_index(indices + [1, 0])
-        q12 = get_value_at_index(indices + [0, 1])
-        q22 = get_value_at_index(indices + [1, 1])
+        q11 = data_array[index_flat(indices)]
+        q21 = data_array[index_flat(indices + [1, 0])]
+        q12 = data_array[index_flat(indices + [0, 1])]
+        q22 = data_array[index_flat(indices + [1, 1])]
 
-        # Perform bilinear interpolation using vectorized operations
+        # Perform bilinear interpolation weighted by t
         interpolated = (q11 * (1 - t[0]) * (1 - t[1]) +
                         q21 * t[0] * (1 - t[1]) +
                         q12 * (1 - t[0]) * t[1] +
@@ -213,10 +205,12 @@ class consistentArrow(VTKPythonAlgorithmBase):
     def rk4_standard(self, image_data, cur, steps, forward, stepsize):
         # runge kutta 4 method for integration in a 2d vector field
         direction_forward = 1 if forward else -1
-        t = 0
         points = []
+        bounds = np.array(image_data.GetBounds())
 
-        while t < steps:
+        num_steps = int(steps / stepsize)
+
+        for _ in range(num_steps):
             # compute k_1 to k_4 for standard vector field
             k_1 = self.bilinear_interpolation(image_data, cur)
 
@@ -229,12 +223,11 @@ class consistentArrow(VTKPythonAlgorithmBase):
             end_point = cur + k_3
             k_4 = self.bilinear_interpolation(image_data, end_point)
 
-            vec = direction_forward * self._stepsize / 6. * (k_1 + 2*k_2 + 2*k_3 + k_4)
+            vec = direction_forward * stepsize * (k_1 + 2*k_2 + 2*k_3 + k_4) / 6.
             next_point = cur + vec * self._scaling
-            next_point = self.clip_point(image_data, next_point)
+            next_point = self.clip_point(bounds, next_point)
             points.append(next_point)
             cur = next_point
-            t += stepsize
 
         return points
 
@@ -242,10 +235,12 @@ class consistentArrow(VTKPythonAlgorithmBase):
     def rk4_orthogonal(self, image_data, cur, steps, left, stepsize):
         # runge kutta 4 method for integrating the orthogonal of the 2d vector field
         direction_left = -1 if left else 1
-        t = 0
         points = []
+        bounds = np.array(image_data.GetBounds())
 
-        while t < steps:
+        num_steps = int(steps / stepsize)
+
+        for _ in range(num_steps):
             # compute k_1 to k_4 for orthogonal vector field
             k_1 = self.bilinear_interpolation(image_data, cur)
             k_1 = self.get_orthogonal(k_1) * direction_left
@@ -262,12 +257,11 @@ class consistentArrow(VTKPythonAlgorithmBase):
             k_4 = self.bilinear_interpolation(image_data, end_point)
             k_4 = self.get_orthogonal(k_4) * direction_left
 
-            vec = self._stepsize / 6.0 * (k_1 + 2*k_2 + 2*k_3 + k_4)
+            vec = self._stepsize * (k_1 + 2*k_2 + 2*k_3 + k_4) / 6.0
             next_point = cur + vec * self._scaling
-            next_point = self.clip_point(image_data, next_point)
+            next_point = self.clip_point(bounds, next_point)
             points.append(next_point)
             cur = next_point
-            t += stepsize
 
         return points
 
@@ -275,16 +269,17 @@ class consistentArrow(VTKPythonAlgorithmBase):
     def euler_standard(self, image_data, cur, steps, forward, stepsize):
         # euler method for integrating a 2d vector field
         direction_forward = 1 if forward else -1
-        t = 0
         points = []
+        bounds = np.array(image_data.GetBounds())
 
-        while t < steps:
+        num_steps = int(steps / stepsize)
+
+        for _ in range(num_steps):
             vec = self.bilinear_interpolation(image_data, cur)
-            next_point = cur + direction_forward * vec * self._scaling
-            next_point = self.clip_point(image_data, next_point)
+            next_point = cur + direction_forward * stepsize * vec * self._scaling
+            next_point = self.clip_point(bounds, next_point)
             points.append(next_point)
             cur = next_point
-            t += stepsize
 
         return points
 
@@ -292,17 +287,17 @@ class consistentArrow(VTKPythonAlgorithmBase):
     def euler_orthogonal(self, image_data, cur, steps, left, stepsize):
         # euler method for integrating the orthogonal of a 2d vector field
         direction_left = -1 if left else 1
-        t = 0
         points = []
+        bounds = np.array(image_data.GetBounds())
 
-        while t < steps:
+        num_steps = int(steps / stepsize)
+
+        for _ in range(num_steps):
             vec = self.bilinear_interpolation(image_data, cur)
-            vec = self.get_orthogonal(vec) * direction_left * self._scaling
-            next_point = cur + vec
-            next_point = self.clip_point(image_data, next_point)
+            next_point = cur + direction_left * stepsize * self.get_orthogonal(vec) * self._scaling
+            next_point = self.clip_point(bounds, next_point)
             points.append(next_point)
             cur = next_point
-            t += stepsize
 
         return points
 
@@ -315,8 +310,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         # third to n-th iteration a_n = (a_{n-1} + a_{n-2}) / 2
         factor_a_0, factor_a_1 = 0., 1.
         dist_0, dist_1 = np.inf, np.inf
-        for i in range(20):
-            points = []
+        for i in range(50):
             if i == 0:
                 factor_a = factor_a_0
             elif i == 1:
@@ -324,6 +318,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
             else:
                 factor_a = (factor_a_0 + factor_a_1) / 2.
 
+            points = []
             factor_b = 1 - factor_a
             min_dist = np.inf
             cur = start
@@ -407,15 +402,23 @@ class consistentArrow(VTKPythonAlgorithmBase):
             orthogonal_func=arrowhead_orthogonal_l
         )
 
-        point_lists = [
+        # point_lists = [
+        #     center_line_backwards, center_line_forwards,
+        #     bottom_arc_left, bottom_arc_right,
+        #     side_line_left, side_line_right,
+        #     arrowbase_left, arrowbase_right,
+        #     arrowhead_left, arrowhead_right,
+        # ]
+
+        # return point_lists
+
+        return [
             center_line_backwards, center_line_forwards,
             bottom_arc_left, bottom_arc_right,
             side_line_left, side_line_right,
             arrowbase_left, arrowbase_right,
             arrowhead_left, arrowhead_right,
         ]
-
-        return point_lists
 
 
     def construct_glyph(self, segments, points, lines):
@@ -455,8 +458,8 @@ class consistentArrow(VTKPythonAlgorithmBase):
             grid_points = self.generate_grid_points(bounds)
             origins = np.concatenate((origins, grid_points), axis=0)
 
-        for ORIGIN in origins:
-            point_lists = self.compute_line_points(image_data=image_data, origin=ORIGIN)
+        for origin in origins:
+            point_lists = self.compute_line_points(image_data=image_data, origin=origin)
 
             line_lengths = [len(lst) for lst in point_lists]
 
@@ -467,7 +470,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
             #     6: arrowbase_left,            7: arrowbase_right,
             #     8: arrowhead_left,            9: arrowhead_right
             segments = [
-                (line_lengths[0] + line_lengths[1] + 1, point_lists[0][::-1] + [ORIGIN] + point_lists[1]),
+                (line_lengths[0] + line_lengths[1] + 1, point_lists[0][::-1] + [origin] + point_lists[1]),
                 (line_lengths[2] + line_lengths[3] + 1, point_lists[2][::-1] + [point_lists[0][-1]] + point_lists[3]),
                 (line_lengths[4] + 1, [point_lists[2][-1]] + point_lists[4]),
                 (line_lengths[5] + 1, [point_lists[3][-1]] + point_lists[5]),
