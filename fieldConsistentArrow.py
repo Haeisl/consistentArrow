@@ -64,8 +64,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
         <IntVectorProperty name="Grid [rows | cols]"
                            command="SetGridDims"
                            number_of_elements="2"
-                           default_values="0.0 0.0">
-            <IntRangeDomain name="range" min="1" max="10" />
+                           default_values="0 0">
         </IntVectorProperty>
     """)
     def SetGridDims(self, rows, cols):
