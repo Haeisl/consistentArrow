@@ -224,10 +224,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
             k_4 = self.bilinear_interpolation(image_data, end_point)
 
             vec = direction_forward * stepsize * (k_1 + 2*k_2 + 2*k_3 + k_4) / 6.
-            if self._normalize:
-                norm = np.linalg.norm(vec)
-                if norm > 0:
-                    vec /= norm
             next_point = cur + vec * self._scaling
             next_point = self.clip_point(bounds, next_point)
             points.append(next_point)
@@ -262,10 +258,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
             k_4 = self.get_orthogonal(k_4)
 
             vec = direction_left * stepsize * (k_1 + 2*k_2 + 2*k_3 + k_4) / 6.0
-            if self._normalize:
-                norm = np.linalg.norm(vec)
-                if norm > 0:
-                    vec /= norm
             next_point = cur + vec * self._scaling
             next_point = self.clip_point(bounds, next_point)
             points.append(next_point)
@@ -284,10 +276,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         for _ in range(num_steps):
             vec = self.bilinear_interpolation(image_data, cur) * direction_forward * stepsize
-            if self._normalize:
-                norm = np.linalg.norm(vec)
-                if norm > 0:
-                    vec /= norm
             next_point = cur + vec * self._scaling
             next_point = self.clip_point(bounds, next_point)
             points.append(next_point)
@@ -306,10 +294,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
 
         for _ in range(num_steps):
             vec = self.bilinear_interpolation(image_data, cur) * direction_left * stepsize
-            if self._normalize:
-                norm = np.linalg.norm(vec)
-                if norm > 0:
-                    vec /= norm
             next_point = cur + self.get_orthogonal(vec) * self._scaling
             next_point = self.clip_point(bounds, next_point)
             points.append(next_point)
