@@ -188,10 +188,10 @@ class consistentArrow(VTKPythonAlgorithmBase):
                         q22 * t[0] * t[1])
 
         # # Normalize the vector if required
-        # if self._normalize:
-        #     norm = np.linalg.norm(interpolated)
-        #     if norm > 0:
-        #         interpolated /= norm
+        if self._normalize:
+            norm = np.linalg.norm(interpolated)
+            if norm > 0:
+                interpolated /= norm
 
         # Append zero to the interpolated result to form a 3D vector
         return np.append(interpolated, 0)
