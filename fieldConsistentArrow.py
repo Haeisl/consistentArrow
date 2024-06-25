@@ -1,6 +1,7 @@
+import multiprocessing
 import time
 from functools import partial
-from multiprocessing import Pool
+
 
 import numpy as np
 
@@ -467,8 +468,9 @@ class consistentArrow(VTKPythonAlgorithmBase):
             grid_points = self.generate_grid_points(bounds)
             origins = np.concatenate((origins, grid_points), axis=0)
 
-        for origin in origins:
-            self.construct_glyph(origin, points, lines, image_data)
+        args = [(origin, points, lines, image_data) for origin in origins]
+        with multiprocessing.Pool(processes=4) as pool:
+            pool.starmap(self.construct_glyph, args)
 
         poly_output.SetPoints(points)
         poly_output.SetLines(lines)
