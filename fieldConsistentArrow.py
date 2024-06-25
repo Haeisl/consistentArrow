@@ -1,5 +1,6 @@
 import time
 from functools import partial
+from multiprocessing import Pool
 
 import numpy as np
 
@@ -148,7 +149,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
         """
         # Clip x and y coordinates
         point = np.clip(point, bounds[::2], bounds[1::2])
-
         # Set z coordinate to 0
         point[2] = 0.0
 
@@ -401,16 +401,6 @@ class consistentArrow(VTKPythonAlgorithmBase):
             orthogonal_func=arrowhead_orthogonal_l
         )
 
-        # point_lists = [
-        #     center_line_backwards, center_line_forwards,
-        #     bottom_arc_left, bottom_arc_right,
-        #     side_line_left, side_line_right,
-        #     arrowbase_left, arrowbase_right,
-        #     arrowhead_left, arrowhead_right,
-        # ]
-
-        # return point_lists
-
         return [
             center_line_backwards, center_line_forwards,
             bottom_arc_left, bottom_arc_right,
@@ -420,7 +410,27 @@ class consistentArrow(VTKPythonAlgorithmBase):
         ]
 
 
-    def construct_glyph(self, segments, points, lines):
+    def construct_glyph(self, origin, points, lines, image_data):
+        point_lists = self.compute_line_points(image_data=image_data, origin=origin)
+
+        line_lengths = [len(lst) for lst in point_lists]
+
+        # point_lists =
+        #     0: center_line_backwards,     1: center_line_forwards,
+        #     2: bottom_arc_left,           3: bottom_arc_right,
+        #     4: side_line_left,            5: side_line_right,
+        #     6: arrowbase_left,            7: arrowbase_right,
+        #     8: arrowhead_left,            9: arrowhead_right
+        segments = [
+            (line_lengths[0] + line_lengths[1] + 1, point_lists[0][::-1] + [origin] + point_lists[1]),
+            (line_lengths[2] + line_lengths[3] + 1, point_lists[2][::-1] + [point_lists[0][-1]] + point_lists[3]),
+            (line_lengths[4] + 1, [point_lists[2][-1]] + point_lists[4]),
+            (line_lengths[5] + 1, [point_lists[3][-1]] + point_lists[5]),
+            (line_lengths[6] + 1, [point_lists[4][-1]] + point_lists[6]),
+            (line_lengths[7] + 1, [point_lists[5][-1]] + point_lists[7]),
+            (line_lengths[8] + 2, [point_lists[6][-1]] + point_lists[8] + [point_lists[1][-1]]),
+            (line_lengths[9] + 2, [point_lists[7][-1]] + point_lists[9] + [point_lists[1][-1]])
+        ]
         start_index = points.GetNumberOfPoints()
 
         for length, segment_points in segments:
@@ -458,28 +468,7 @@ class consistentArrow(VTKPythonAlgorithmBase):
             origins = np.concatenate((origins, grid_points), axis=0)
 
         for origin in origins:
-            point_lists = self.compute_line_points(image_data=image_data, origin=origin)
-
-            line_lengths = [len(lst) for lst in point_lists]
-
-            # point_lists =
-            #     0: center_line_backwards,     1:center_line_forwards,
-            #     2: bottom_arc_left,           3: bottom_arc_right,
-            #     4: side_line_left,            5: side_line_right,
-            #     6: arrowbase_left,            7: arrowbase_right,
-            #     8: arrowhead_left,            9: arrowhead_right
-            segments = [
-                (line_lengths[0] + line_lengths[1] + 1, point_lists[0][::-1] + [origin] + point_lists[1]),
-                (line_lengths[2] + line_lengths[3] + 1, point_lists[2][::-1] + [point_lists[0][-1]] + point_lists[3]),
-                (line_lengths[4] + 1, [point_lists[2][-1]] + point_lists[4]),
-                (line_lengths[5] + 1, [point_lists[3][-1]] + point_lists[5]),
-                (line_lengths[6] + 1, [point_lists[4][-1]] + point_lists[6]),
-                (line_lengths[7] + 1, [point_lists[5][-1]] + point_lists[7]),
-                (line_lengths[8] + 2, [point_lists[6][-1]] + point_lists[8] + [point_lists[1][-1]]),
-                (line_lengths[9] + 2, [point_lists[7][-1]] + point_lists[9] + [point_lists[1][-1]])
-            ]
-
-            self.construct_glyph(segments, points, lines)
+            self.construct_glyph(origin, points, lines, image_data)
 
         poly_output.SetPoints(points)
         poly_output.SetLines(lines)
